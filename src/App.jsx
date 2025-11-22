@@ -1,12 +1,12 @@
-// ...altre tue importazioni come React, Calendar, ecc.
-import { supabase } from './supabaseClient'; // Assicurati che il percorso sia corretto!
-// ...le tue altre importazioni
+import { supabase } from './supabaseClient';
+import SettingsView from './components/views/SettingsView';
+import { translations } from './utils/translations';
 import React, { useState, useEffect, useContext, createContext } from 'react';
-import { 
-  Calendar, Users, Bell, Settings, LogOut, Plus, 
+import {
+  Calendar, Users, Bell, Settings, LogOut, Plus,
   ChevronLeft, ChevronRight, Menu, X, Clock,
   Download, TrendingUp, AlertCircle, CheckCircle,
-  Search, Filter, Edit2, Trash2, XCircle, DollarSign, Zap
+  Search, Filter, Edit2, Trash2, XCircle, DollarSign, Zap, Moon, Sun, Lock, Globe, Shield, Mail, User
 } from 'lucide-react';
 // Importa i componenti di framer-motion
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,20 +27,20 @@ function calculateHours(startTime, endTime) {
   if (!startTime || !endTime) return 0;
   const [startH, startM] = startTime.split(':').map(Number);
   const [endH, endM] = endTime.split(':').map(Number);
-  return ((endH + endM/60) - (startH + startM/60)).toFixed(1);
+  return ((endH + endM / 60) - (startH + startM / 60)).toFixed(1);
 }
 
 function formatDate(date) {
-  return new Date(date).toLocaleDateString('it-IT', { 
-    day: '2-digit', 
+  return new Date(date).toLocaleDateString('it-IT', {
+    day: '2-digit',
     month: 'short',
     year: 'numeric'
   });
 }
 
 function formatDateShort(date) {
-  return new Date(date).toLocaleDateString('it-IT', { 
-    day: '2-digit', 
+  return new Date(date).toLocaleDateString('it-IT', {
+    day: '2-digit',
     month: 'short'
   });
 }
@@ -54,9 +54,47 @@ function handleExportPDF(employees, shifts, getWeekDays, business, calculateWeek
   const weekDays = getWeekDays();
   const weekStart = formatDateShort(weekDays[0]);
   const weekEnd = formatDateShort(weekDays[6]);
-  
-  // (Contenuto HTML per la stampa... omesso per brevità, è lo stesso di prima)
-  const printContent = `... (Stesso HTML di prima) ...`;
+
+  const printContent = `
+    <html>
+      <head>
+        <title>Turni ${weekStart} - ${weekEnd}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { color: #333; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { bg-color: #f2f2f2; }
+          .shift { font-size: 12px; margin-bottom: 4px; }
+        </style>
+      </head>
+      <body>
+        <h1>Turni Settimanali: ${weekStart} - ${weekEnd}</h1>
+        <h2>${business?.name || 'ShiftMate Business'}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Dipendente</th>
+              ${weekDays.map(d => `<th>${d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' })}</th>`).join('')}
+              <th>Totale Ore</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${employees.filter(e => e.isActive).map(emp => `
+              <tr>
+                <td>${emp.firstName} ${emp.lastName}<br><small>${emp.position}</small></td>
+                ${weekDays.map(day => {
+    const dayShifts = shifts.filter(s => s.employeeId === emp.id && s.date === day.toISOString().split('T')[0]);
+    return `<td>${dayShifts.map(s => `<div class="shift">${s.startTime} - ${s.endTime}</div>`).join('')}</td>`;
+  }).join('')}
+                <td>${calculateWeekHours(emp.id)}h</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
 
   const printWindow = window.open('', '_blank');
   printWindow.document.write(printContent);
@@ -68,11 +106,20 @@ function handleExportPDF(employees, shifts, getWeekDays, business, calculateWeek
 
 function handleExportExcel(employees, shifts, getWeekDays, calculateWeekHours) {
   const weekDays = getWeekDays();
-  // (Logica CSV... omessa per brevità, è la stessa di prima)
-  let csv = 'Dipendente,Posizione... (Stesso CSV di prima) ...';
+  const header = ['Dipendente', 'Posizione', ...weekDays.map(d => d.toLocaleDateString('it-IT')), 'Totale Ore'];
+  let csv = header.join(',') + '\n';
 
-  employees.filter(e => e.isActive).forEach(employee => {
-    // ... (Logica di riempimento CSV) ...
+  employees.filter(e => e.isActive).forEach(emp => {
+    const row = [
+      `${emp.firstName} ${emp.lastName}`,
+      emp.position,
+      ...weekDays.map(day => {
+        const dayShifts = shifts.filter(s => s.employeeId === emp.id && s.date === day.toISOString().split('T')[0]);
+        return dayShifts.map(s => `${s.startTime}-${s.endTime}`).join('; ');
+      }),
+      calculateWeekHours(emp.id)
+    ];
+    csv += row.join(',') + '\n';
   });
 
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -100,100 +147,303 @@ export const AppProvider = ({ children }) => {
   const [employees, setEmployees] = useState([]);
 
   const [shifts, setShifts] = useState([]);
-const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState([]);
 
-// ==== AGGIUNGI QUESTO STATO MANCANTE ====
-const [notification, setNotification] = useState(null);
-// ======================================
-const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStart(new Date()));
-  // ... (tutti gli altri state)
+  // ==== AGGIUNGI QUESTO STATO MANCANTE ====
+  const [notification, setNotification] = useState(null);
+  // ======================================
+  // ==== THEME STATE ====
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') || 'light';
+    }
+    return 'light';
+  });
+  // ======================================
+  const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStart(new Date()));
+
+  const [settings, setSettings] = useState({
+    publicProfile: false,
+    emailNotifications: { marketing: false, shifts: true },
+    twoFactorEnabled: false,
+    language: 'it',
+    timezone: 'Europe/Rome',
+    weekStart: 'monday',
+    compactView: false,
+    pushNotifications: false,
+    smsAlerts: false,
+    dailyDigest: false
+  });
+
+  const updateSettings = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    // showNotification('Impostazione aggiornata'); // Optional: too noisy?
+  };
+
+  const toggleNotification = (type) => {
+    setSettings(prev => ({
+      ...prev,
+      emailNotifications: {
+        ...prev.emailNotifications,
+        [type]: !prev.emailNotifications[type]
+      }
+    }));
+  };
+  // ========================
 
   // ... (tutte le altre funzioni come showNotification, getWeekDays, ecc.)
-function showNotification(message, type = 'success') {
-  setNotification({ message, type, id: Date.now() });
-  setTimeout(() => setNotification(null), 5000);
-}
-
-// ============================================
-// ==== AGGIUNGI QUESTE FUNZIONI MANCANTI ====
-// ============================================
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
-}
-
-function getWeekDays() {
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(currentWeekStart);
-    date.setDate(date.getDate() + i);
-    days.push(date);
+  function showNotification(message, type = 'success') {
+    setNotification({ message, type, id: Date.now() });
+    setTimeout(() => setNotification(null), 5000);
   }
-  return days;
-}
 
-function changeWeek(direction) {
-  if (direction === 0) { // "Oggi"
-    setCurrentWeekStart(getWeekStart(new Date()));
-  } else {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() + (direction * 7));
-    setCurrentWeekStart(getWeekStart(newDate));
+  // ==== THEME LOGIC ====
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+  // ====================
+
+  // ============================================
+  // ==== AGGIUNGI QUESTE FUNZIONI MANCANTI ====
+  // ============================================
+  function getWeekStart(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
   }
-}
-// ============================================
+
+  function getWeekDays() {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(currentWeekStart);
+      date.setDate(date.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  }
+
+  function changeWeek(direction) {
+    if (direction === 0) { // "Oggi"
+      setCurrentWeekStart(getWeekStart(new Date()));
+    } else {
+      const newDate = new Date(currentWeekStart);
+      newDate.setDate(newDate.getDate() + (direction * 7));
+      setCurrentWeekStart(getWeekStart(newDate));
+    }
+  }
+  // ============================================
   // --- NUOVA FUNZIONE PER CARICARE I DATI DELL'UTENTE ---
   // (L'avevamo definita prima, ora la usiamo)
+  // --- 1. FUNZIONE DI CARICAMENTO DATI (Aggiornata) ---
   async function loadData(authUser) {
-  setIsLoading(true);
-  try {
-    // 1. Carica il profilo
-    let { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_premium, stripe_customer_id')
-      .eq('id', authUser.id)
-      .single(); // Chiede un risultato singolo
+    setIsLoading(true);
+    try {
+      // --- 1. CARICAMENTO PROFILO (Corretto per evitare ReferenceError) ---
 
-    // 2. Gestisci il caso "Nessun Profilo" (es. utente vecchio)
-    // L'errore 'PGRST116' significa ".single() ha restituito 0 righe"
-    if (profileError && profileError.code === 'PGRST116') {
-      console.warn("Attenzione: utente loggato ma nessun profilo trovato. Lo considero Non-Premium.");
-      profileData = { is_premium: false }; // Imposta un profilo di default
-    } else if (profileError) {
-      // Altro errore DB (es. RLS bloccato, ecc.)
-      throw profileError;
-    }
+      // Inizializziamo profileData con un valore di default.
+      // Così se la chiamata al DB fallisce o non trova nulla, la variabile ESISTE COMUNQUE.
+      let finalProfileData = { is_premium: false };
 
-    // 3. Unisci i dati e imposta l'utente
-    setUser({
-      ...authUser,    // Dati da Auth (email, id...)
-      ...profileData  // Dati dal DB (is_premium...)
-    });
-    
-    // 4. Carica il resto dei dati (turni, dipendenti, ecc.)
-    // (Questa è la tua logica di mock-data, da sostituire in futuro)
-    setBusiness({ id: '1', name: 'Bar Centrale', type: 'bar', address: 'Via Roma 123, Brescia' });
-    setEmployees([
+      const { data: fetchedProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_premium, stripe_customer_id')
+        .eq('id', authUser.id)
+        .maybeSingle(); // Usa maybeSingle per evitare errori 406
+
+      if (profileError) {
+        console.warn("Errore lettura profilo (uso default):", profileError.message);
+      }
+
+      // Se abbiamo trovato il profilo nel DB, sovrascriviamo il default
+      if (fetchedProfile) {
+        finalProfileData = fetchedProfile;
+      }
+
+      // Ora possiamo usare finalProfileData senza paura che sia undefined
+      setUser({
+        ...authUser,
+        ...finalProfileData
+      });
+
+      // --- 2. CARICAMENTO DATI ATTIVITÀ (Business) ---
+
+      const { data: businessData, error: businessError } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('owner_id', authUser.id)
+        .maybeSingle();
+
+      if (businessData) {
+        // Normalizziamo il nome (gestiamo sia 'name' che 'business_name')
+        const normalizedBusiness = {
+          ...businessData,
+          name: businessData.name || businessData.business_name || ''
+        };
+        setBusiness(normalizedBusiness);
+      } else {
+        // Fallback visivo se non c'è ancora un'attività
+        setBusiness({ name: 'La tua Attività', address: 'Indirizzo non impostato' });
+      }
+
+      // --- 3. CARICAMENTO DIPENDENTI (MOCK - Come avevi prima) ---
+      // In futuro qui metterai la chiamata a supabase.from('employees')...
+      setEmployees([
         { id: '1', firstName: 'Mario', lastName: 'Rossi', position: 'Barista', contractHours: 40, color: '#3B82F6', email: 'mario@test.com', phone: '333-1234567', isActive: true },
         { id: '2', firstName: 'Laura', lastName: 'Bianchi', position: 'Cameriera', contractHours: 20, color: '#EF4444', email: 'laura@test.com', phone: '333-7654321', isActive: true },
-    ]);
-    setShifts([
-        { id: '1', employeeId: '1', date: '2025-11-17', startTime: '08:00', endTime: '16:00', type: 'morning' },
-        { id: '2', employeeId: '2', date: '2025-11-17', startTime: '16:00', endTime: '23:00', type: 'evening' },
-    ]);
-    setRequests([
-        { id: '1', employeeId: '2', type: 'time_off', startDate: '2025-11-22', endDate: '2025-11-24', reason: 'Vacanza programmata', status: 'pending', createdAt: '2025-11-15' },
-    ]);
+      ]);
 
-  } catch (error) {
-    console.error('Error loading data:', error);
-    showNotification('Errore caricamento dati', 'error');
-  } finally {
-    setIsLoading(false);
+      // Mock shifts
+      setShifts([
+        { id: '1', employeeId: '1', date: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '16:00', type: 'morning' },
+      ]);
+
+      // Mock requests
+      setRequests([]);
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+      showNotification('Errore caricamento dati', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   }
-}
+
+  // --- 2. FUNZIONE AGGIORNAMENTO PROFILO & BUSINESS (Aggiornata) ---
+  // --- FUNZIONE ROBUSTA PER AGGIORNARE TUTTO ---
+  const updateProfile = async (formData) => {
+    try {
+      setIsLoading(true);
+
+      // 1. Aggiorna Auth (Nome Utente)
+      const updates = {
+        data: {
+          first_name: formData.firstName,
+          last_name: formData.lastName
+        }
+      };
+      if (formData.email && formData.email !== user.email) {
+        updates.email = formData.email;
+      }
+
+      const { error: authError } = await supabase.auth.updateUser(updates);
+      if (authError) throw authError;
+
+      // 2. AGGIORNA O CREA DATI BUSINESS
+      // Verifica se esiste già un business per questo utente
+      const { data: existingBusiness, error: checkError } = await supabase
+        .from('businesses')
+        .select('*') // Selezioniamo tutto per controllare i nomi delle colonne
+        .eq('owner_id', user.id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error("Errore controllo business:", checkError);
+        throw checkError;
+      }
+
+      let updatedBusinessData;
+      let busError;
+
+      // Determina il nome della colonna per il nome attività
+      // Se esiste 'business_name' usiamo quello, altrimenti 'name'
+      // Se è un nuovo inserimento, proviamo a indovinare o usiamo 'name' come default, 
+      // ma se fallisce l'insert ci darà info. Per ora assumiamo 'name' se non c'è record,
+      // oppure 'business_name' se è quello comune.
+      // Strategia: se existingBusiness c'è, controlliamo le chiavi.
+
+      let nameColumn = 'name';
+      if (existingBusiness && 'business_name' in existingBusiness) {
+        nameColumn = 'business_name';
+      }
+
+      const businessPayload = {
+        address: formData.address,
+        phone: formData.phone
+      };
+      businessPayload[nameColumn] = formData.businessName;
+
+      if (existingBusiness) {
+        // UPDATE
+        console.log(`Updating business using column: ${nameColumn}`);
+        const { data, error } = await supabase
+          .from('businesses')
+          .update(businessPayload)
+          .eq('owner_id', user.id)
+          .select()
+          .single();
+
+        updatedBusinessData = data;
+        busError = error;
+      } else {
+        // INSERT
+        // Proviamo con 'name', se fallisce potremmo dover riprovare con 'business_name'
+        // Ma per sicurezza, proviamo a vedere se possiamo essere più smart.
+        // Per ora usiamo 'name' standard, o 'business_name' se preferiamo.
+        // Mettiamo 'name' come default.
+        const insertPayload = {
+          owner_id: user.id,
+          name: formData.businessName,
+          address: formData.address,
+          phone: formData.phone
+        };
+
+        const { data, error } = await supabase
+          .from('businesses')
+          .insert(insertPayload)
+          .select()
+          .single();
+
+        updatedBusinessData = data;
+        busError = error;
+      }
+
+      if (busError) {
+        console.error("Errore Supabase Business:", busError);
+        throw busError;
+      }
+
+      console.log("Dati salvati nel DB:", updatedBusinessData);
+
+      // 3. Aggiorna Stato Locale
+      setUser(prev => ({
+        ...prev,
+        user_metadata: {
+          ...prev.user_metadata,
+          first_name: formData.firstName,
+          last_name: formData.lastName
+        },
+        email: formData.email
+      }));
+
+      // Aggiorna la Sidebar immediatamente con i dati freschi
+      // Normalizziamo anche qui
+      if (updatedBusinessData) {
+        const normalizedBusiness = {
+          ...updatedBusinessData,
+          name: updatedBusinessData.name || updatedBusinessData.business_name || ''
+        };
+        setBusiness(normalizedBusiness);
+      }
+
+      showNotification('Salvato con successo!');
+      return true;
+
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      showNotification('Errore: ' + error.message, 'error');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 
   // --- MODIFICA useEffect PER L'AUTH REALE ---
@@ -228,11 +478,38 @@ function changeWeek(direction) {
     return () => authListener.subscription.unsubscribe();
   }, []); // Esegui solo all'avvio
 
-  
+
   // --- NUOVE FUNZIONI AUTH DA ESPORRE ---
-  async function authSignUp(email, password) {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return { error };
+  // Modifica authSignUp per accettare l'oggetto con tutti i dati
+  async function authSignUp(formData) {
+    // Estraiamo i dati
+    const { email, password, firstName, lastName, businessName, address, phone } = formData;
+
+    try {
+      // 1. Registra l'utente e salva TUTTO nei metadata (user_metadata)
+      // Non facciamo più l'insert manuale in 'businesses' qui!
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            business_name: businessName, // Salviamo qui temporaneamente
+            business_address: address,   // Salviamo qui temporaneamente
+            business_phone: phone        // Salviamo qui temporaneamente
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      return { data };
+
+    } catch (error) {
+      console.error("Errore registrazione:", error);
+      return { error };
+    }
   }
 
   async function authSignIn(email, password) {
@@ -245,180 +522,238 @@ function changeWeek(direction) {
     return { error };
   }
   // ============================================
-// ==== AGGIUNGI QUESTE FUNZIONI CRUD MANCANTI ====
-// ============================================
+  // ==== AGGIUNGI QUESTE FUNZIONI CRUD MANCANTI ====
+  // ============================================
 
-// (Aggiungiamo anche questa, che serve a handleSaveEmployee)
-function generateRandomColor() {
-  const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
+  // (Aggiungiamo anche questa, che serve a handleSaveEmployee)
+  function generateRandomColor() {
+    const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
 
-async function handleSaveEmployee(formData, selectedEmployee) {
-  try {
-    if (selectedEmployee) {
-      setEmployees(prev => prev.map(emp => 
-        emp.id === selectedEmployee.id ? { ...emp, ...formData } : emp
-      ));
-      showNotification('Dipendente aggiornato');
-    } else {
-      const newEmployee = {
-        id: Date.now().toString(),
-        ...formData,
-        isActive: true,
-        color: generateRandomColor()
-      };
-      setEmployees(prev => [...prev, newEmployee]);
-      showNotification('Dipendente aggiunto');
+  async function handleSaveEmployee(formData, selectedEmployee) {
+    try {
+      if (selectedEmployee) {
+        setEmployees(prev => prev.map(emp =>
+          emp.id === selectedEmployee.id ? { ...emp, ...formData } : emp
+        ));
+        showNotification('Dipendente aggiornato');
+      } else {
+        const newEmployee = {
+          id: Date.now().toString(),
+          ...formData,
+          isActive: true,
+          color: generateRandomColor()
+        };
+        setEmployees(prev => [...prev, newEmployee]);
+        showNotification('Dipendente aggiunto');
+      }
+      return true; // Successo
+    } catch (error) {
+      showNotification('Errore nel salvare il dipendente', 'error');
+      return false; // Fallimento
     }
-    return true; // Successo
-  } catch (error) {
-    showNotification('Errore nel salvare il dipendente', 'error');
-    return false; // Fallimento
   }
-}
 
-async function handleDeleteEmployee(id) {
-  // Sostituzione di confirm() con messaggio di avviso
-  showNotification('Azione di eliminazione simulata.', 'error');
-  // In futuro, qui potresti mettere:
-  // setEmployees(prev => prev.filter(emp => emp.id !== id));
-}
+  async function handleDeleteEmployee(id) {
+    // Sostituzione di confirm() con messaggio di avviso
+    showNotification('Azione di eliminazione simulata.', 'error');
+    // In futuro, qui potresti mettere:
+    // setEmployees(prev => prev.filter(emp => emp.id !== id));
+  }
 
-async function handleSaveShift(formData, selectedShift) {
-  try {
-    if (selectedShift) {
-      setShifts(prev => prev.map(shift => 
-        shift.id === selectedShift.id ? { ...shift, ...formData } : shift
-      ));
-      showNotification('Turno aggiornato');
-    } else {
-      const newShift = {
-        id: Date.now().toString(),
-        ...formData
-      };
-      setShifts(prev => [...prev, newShift]);
-      showNotification('Turno creato');
+  async function handleSaveShift(formData, selectedShift) {
+    try {
+      if (selectedShift) {
+        setShifts(prev => prev.map(shift =>
+          shift.id === selectedShift.id ? { ...shift, ...formData } : shift
+        ));
+        showNotification('Turno aggiornato');
+      } else {
+        const newShift = {
+          id: Date.now().toString(),
+          ...formData
+        };
+        setShifts(prev => [...prev, newShift]);
+        showNotification('Turno creato');
+      }
+      return true; // Successo
+    } catch (error) {
+      showNotification('Errore nel salvare il turno', 'error');
+      return false; // Fallimento
     }
-    return true; // Successo
-  } catch (error) {
-    showNotification('Errore nel salvare il turno', 'error');
-    return false; // Fallimento
   }
-}
 
-async function handleDeleteShift(id) {
-  showNotification('Eliminazione turno simulata.', 'error');
-  // In futuro, qui potresti mettere:
-  // setShifts(prev => prev.filter(shift => shift.id !== id));
-}
-
-async function handleApproveRequest(id) {
-  try {
-    setRequests(prev => prev.map(req => 
-      req.id === id ? { ...req, status: 'approved' } : req
-    ));
-    showNotification('Richiesta approvata');
-  } catch (error) {
-    showNotification('Errore nell\'approvare la richiesta', 'error');
+  async function handleDeleteShift(id) {
+    showNotification('Eliminazione turno simulata.', 'error');
+    // In futuro, qui potresti mettere:
+    // setShifts(prev => prev.filter(shift => shift.id !== id));
   }
-}
 
-async function handleRejectRequest(id) {
-  try {
-    setRequests(prev => prev.map(req => 
-      req.id === id ? { ...req, status: 'rejected' } : req
-    ));
-    showNotification('Richiesta rifiutata');
-  } catch (error) {
-    showNotification('Errore nel rifiutare la richiesta', 'error');
+  async function handleApproveRequest(id) {
+    try {
+      setRequests(prev => prev.map(req =>
+        req.id === id ? { ...req, status: 'approved' } : req
+      ));
+      showNotification('Richiesta approvata');
+    } catch (error) {
+      showNotification('Errore nell\'approvare la richiesta', 'error');
+    }
   }
-}
 
-// Funzioni per l'export (le mettiamo qui così hanno accesso ai dati)
-const exportPDF = () => {
-  // Qui dovresti richiamare la funzione handleExportPDF
-  // passando i dati di stato (employees, shifts, getWeekDays, ecc.)
-  showNotification('Funzione PDF non ancora migrata nel context.', 'error');
-};
+  async function handleRejectRequest(id) {
+    try {
+      setRequests(prev => prev.map(req =>
+        req.id === id ? { ...req, status: 'rejected' } : req
+      ));
+      showNotification('Richiesta rifiutata');
+    } catch (error) {
+      showNotification('Errore nel rifiutare la richiesta', 'error');
+    }
+  }
 
-const exportExcel = () => {
-  // Qui dovresti richiamare la funzione handleExportExcel
-  showNotification('Funzione Excel non ancora migrata nel context.', 'error');
-};
-// ============================================
-// ============================================
-// ==== AGGIUNGI QUESTE FUNZIONI HELPER MANCANTI ====
-// ============================================
+  // Funzioni per l'export (le mettiamo qui così hanno accesso ai dati)
+  const exportPDF = () => {
+    handleExportPDF(employees, shifts, getWeekDays, business, calculateWeekHours);
+  };
 
-function getShiftsForDate(date) {
-  // Nota: 'shifts' è disponibile qui perché è nello scope di AppProvider
-  const dateStr = date.toISOString().split('T')[0];
-  return shifts.filter(s => s.date === dateStr);
-}
+  const exportExcel = () => {
+    handleExportExcel(employees, shifts, getWeekDays, calculateWeekHours);
+  };
+  // ============================================
+  // ============================================
+  // ==== AGGIUNGI QUESTE FUNZIONI HELPER MANCANTI ====
+  // ============================================
 
-function getEmployeeById(id) {
-  // Nota: 'employees' è disponibile qui
-  return employees.find(e => e.id === id);
-}
+  function getShiftsForDate(date) {
+    // Nota: 'shifts' è disponibile qui perché è nello scope di AppProvider
+    const dateStr = date.toISOString().split('T')[0];
+    return shifts.filter(s => s.date === dateStr);
+  }
 
-function calculateHours(startTime, endTime) {
-  if (!startTime || !endTime) return 0; // Aggiunto controllo di sicurezza
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
-  return ((endH + endM/60) - (startH + startM/60)).toFixed(1);
-}
+  function getEmployeeById(id) {
+    // Nota: 'employees' è disponibile qui
+    return employees.find(e => e.id === id);
+  }
 
-function calculateWeekHours(employeeId) {
-  // Nota: 'getWeekDays' e 'getShiftsForDate' sono disponibili qui
-  const weekDays = getWeekDays();
-  let totalHours = 0;
-  weekDays.forEach(day => {
-    const dayShifts = getShiftsForDate(day).filter(s => s.employeeId === employeeId);
-    dayShifts.forEach(shift => {
-      totalHours += parseFloat(calculateHours(shift.startTime, shift.endTime));
+  function calculateHours(startTime, endTime) {
+    if (!startTime || !endTime) return 0; // Aggiunto controllo di sicurezza
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    return ((endH + endM / 60) - (startH + startM / 60)).toFixed(1);
+  }
+
+  function calculateWeekHours(employeeId) {
+    // Nota: 'getWeekDays' e 'getShiftsForDate' sono disponibili qui
+    const weekDays = getWeekDays();
+    let totalHours = 0;
+    weekDays.forEach(day => {
+      const dayShifts = getShiftsForDate(day).filter(s => s.employeeId === employeeId);
+      dayShifts.forEach(shift => {
+        totalHours += parseFloat(calculateHours(shift.startTime, shift.endTime));
+      });
     });
-  });
-  return totalHours.toFixed(1);
-}
-// ============================================
+    return totalHours.toFixed(1);
+  }
+  // ============================================
 
-const pendingRequestsCount = requests.filter(r => r.status === 'pending').length;
- // --- Valore fornito dal Context ---
-// Ora assicurati che l'oggetto 'value' includa TUTTE queste funzioni:
-const value = {
-  user,
-  isLoading,
-  business,
-  employees,
-  shifts,
-  requests,
-  notification,
-  setNotification,
-  showNotification,
-  currentWeekStart,
-  getWeekDays,
-  changeWeek,
-  getShiftsForDate,
-  calculateWeekHours,
-  calculateHours,
-  getEmployeeById,
-  authSignUp,
-  authSignIn,
-  authSignOut,
-  handleSaveEmployee,
-  handleDeleteEmployee,
-  handleSaveShift,
-  handleDeleteShift,
-  handleApproveRequest,
-  handleRejectRequest,
-  exportPDF,
-  exportExcel,
+  const pendingRequestsCount = requests.filter(r => r.status === 'pending').length;
+  // --- Valore fornito dal Context ---
+  // Ora assicurati che l'oggetto 'value' includa TUTTE queste funzioni:
+  const value = {
+    user,
+    isLoading,
+    business,
+    employees,
+    shifts,
+    requests,
+    notification,
+    setNotification,
+    showNotification,
+    currentWeekStart,
+    getWeekDays,
+    changeWeek,
+    getShiftsForDate,
+    calculateWeekHours,
+    calculateHours,
+    getEmployeeById,
+    authSignUp,
+    authSignIn,
+    authSignOut,
+    handleSaveEmployee,
+    handleDeleteEmployee,
+    handleSaveShift,
+    handleDeleteShift,
+    handleApproveRequest,
+    exportExcel,
+    t: (key) => {
+      const lang = settings.language || 'it';
+      return translations[lang][key] || key;
+    },
+    updateProfile: async (data) => {
+      try {
+        // Prepara l'oggetto di aggiornamento
+        const updates = {
+          data: {
+            first_name: data.firstName,
+            last_name: data.lastName
+          }
+        };
 
-  // ==== AGGIUNGI QUESTA CHIAVE MANCANTE ====
-  pendingRequestsCount
-  // ========================================
-};
+        // Se l'email è cambiata, aggiungila agli aggiornamenti
+        // NOTA: Supabase invierà una mail di conferma al nuovo indirizzo
+        if (data.email && data.email !== user.email) {
+          updates.email = data.email;
+        }
+
+        const { error } = await supabase.auth.updateUser(updates);
+
+        if (error) throw error;
+
+        // Aggiorna lo stato locale immediatamente per la UI
+        setUser(prev => ({
+          ...prev,
+          user_metadata: {
+            ...prev.user_metadata,
+            first_name: data.firstName,
+            last_name: data.lastName
+          },
+          email: data.email // Aggiorniamo anche l'email in locale
+        }));
+
+        showNotification('Profilo aggiornato con successo');
+        return true;
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        showNotification('Errore aggiornamento profilo: ' + error.message, 'error');
+        return false;
+      }
+    },
+    changePassword: async (oldPwd, newPwd) => {
+      try {
+        const { error } = await supabase.auth.updateUser({ password: newPwd });
+        if (error) throw error;
+        showNotification('Password aggiornata con successo');
+        return true;
+      } catch (error) {
+        console.error('Error changing password:', error);
+        showNotification('Errore durante il cambio password', 'error');
+        return false;
+      }
+    },
+
+    // ==== AGGIUNGI QUESTA CHIAVE MANCANTE ====
+    pendingRequestsCount,
+
+    // ==== SETTINGS EXPORTS ====
+    settings,
+    updateSettings,
+    toggleNotification,
+    // ==========================
+    // ========================================
+    theme,
+    toggleTheme
+  };
 
   return (
     <AppContext.Provider value={value}>
@@ -467,25 +802,25 @@ const AnimatedModal = ({ children, onClose, title }) => {
         onClick={onClose} // Chiudi cliccando sul backdrop
       >
         <motion.div
-          className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform"
+          className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-colors"
           variants={modalVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
           onClick={(e) => e.stopPropagation()} // Evita la chiusura cliccando sul modale
         >
-          <div className="flex justify-between items-center p-5 border-b border-gray-200">
-            <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+          <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-dark-border">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h3>
             <motion.button
               onClick={onClose}
-              className="p-2 text-gray-500 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
+              className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-dark-bg transition-colors"
               whileHover={{ scale: 1.1, rotate: 90 }}
               whileTap={{ scale: 0.9 }}
             >
               <X className="w-5 h-5" />
             </motion.button>
           </div>
-          <div className="p-5">
+          <div className="p-5 text-gray-700 dark:text-gray-300">
             {children}
           </div>
         </motion.div>
@@ -518,16 +853,17 @@ const Notification = () => {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`rounded-lg p-4 flex items-center gap-3 shadow-lg ${
-              notification.type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-            }`}
+            className={`rounded-lg p-4 flex items-center gap-3 shadow-lg ${notification.type === 'success'
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+              }`}
           >
             {notification.type === 'success' ? (
               <CheckCircle className="w-5 h-5 text-green-600" />
             ) : (
               <AlertCircle className="w-5 h-5 text-red-600" />
             )}
-            <span className={notification.type === 'success' ? 'text-green-800' : 'text-red-800'}>
+            <span className={notification.type === 'success' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}>
               {notification.message}
             </span>
             <button onClick={() => setNotification(null)} className="ml-auto">
@@ -546,7 +882,7 @@ const Notification = () => {
 // ============================================
 
 const LoadingSpinner = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  <div className="min-h-screen bg-gray-50 dark:bg-dark-bg flex items-center justify-center transition-colors">
     <div className="text-center">
       <motion.div
         className="inline-block h-12 w-12 border-4 border-blue-600 border-t-transparent rounded-full mb-4"
@@ -554,7 +890,7 @@ const LoadingSpinner = () => (
         transition={{ loop: Infinity, ease: "linear", duration: 1 }}
       >
       </motion.div>
-      <p className="text-gray-600">Caricamento...</p>
+      <p className="text-gray-600 dark:text-gray-400">Caricamento...</p>
     </div>
   </div>
 );
@@ -563,23 +899,23 @@ const LoadingSpinner = () => (
 // FILE: src/components/layout/Sidebar.js
 // ============================================
 
-// Dentro App.jsx, nel componente Sidebar
 const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
-  // 1. ESTRAI TUTTO IL NECESSARIO DAL CONTEXT
-  const { 
-    business, 
-    employees, 
-    pendingRequestsCount, 
-    authSignOut 
+  const {
+    business,
+    employees,
+    pendingRequestsCount,
+    authSignOut,
+    user,
+    t // Use t helper
   } = useAppContext();
 
-  // 2. Definisci gli item di navigazione
-  // (Ora 'employees.length' e 'pendingRequestsCount' funzioneranno)
+  const isPremium = user?.is_premium;
+
   const navItems = [
-    { id: 'dashboard', icon: Calendar, label: 'Calendario' },
-    { id: 'employees', icon: Users, label: 'Dipendenti', badge: employees.length },
-    { id: 'requests', icon: Bell, label: 'Richieste', badge: pendingRequestsCount },
-    { id: 'settings', icon: Settings, label: 'Impostazioni' }
+    { id: 'dashboard', icon: Calendar, label: t('calendar') },
+    { id: 'employees', icon: Users, label: t('employees'), badge: employees.length },
+    { id: 'requests', icon: Bell, label: t('requests'), badge: pendingRequestsCount },
+    { id: 'settings', icon: Settings, label: t('settings') }
   ];
 
   return (
@@ -588,15 +924,14 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
         <div className="bg-blue-600 p-2 rounded-xl">
           <Calendar className="w-6 h-6 text-white" />
         </div>
-        <span className="text-xl font-bold text-gray-900">ShiftMate</span>
+        <span className="text-xl font-bold text-gray-900 dark:text-white transition-colors">ShiftMate</span>
       </div>
 
-      {/* 3. Ora 'business' esiste e non causerà crash */}
       {business && (
-        <div className="bg-blue-50 rounded-xl p-4 mb-6">
-          <div className="text-sm text-gray-600 mb-1">Locale</div>
-          <div className="font-bold text-gray-900">{business.name}</div>
-          <div className="text-xs text-gray-600 mt-1">{business.address}</div>
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-6 transition-colors">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('venue')}</div>
+          <div className="font-bold text-gray-900 dark:text-white">{business.name}</div>
+          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{business.address}</div>
         </div>
       )}
 
@@ -605,11 +940,10 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
           <button
             key={item.id}
             onClick={() => setCurrentView(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-              currentView === item.id
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${currentView === item.id
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg'
+              }`}
           >
             <item.icon className="w-5 h-5" />
             <span className="font-medium flex-1 text-left">{item.label}</span>
@@ -620,24 +954,64 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
             )}
           </button>
         ))}
-        <button
-          onClick={onOpenPremium} // Questo usa ancora la prop passata da App
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:shadow-lg mt-4"
-        >
-          <Zap className="w-5 h-5" />
-          <span className="font-bold flex-1 text-left">Passa a Premium</span>
-        </button>
+
+        {isPremium ? (
+          <div className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 bg-gradient-to-r from-yellow-400/20 to-orange-500/20 border border-yellow-400/30 mt-4">
+            <Zap className="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="currentColor" />
+            <span className="font-bold flex-1 text-left text-yellow-700 dark:text-yellow-400">{t('premium_member')}</span>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenPremium}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:shadow-lg mt-4"
+          >
+            <Zap className="w-5 h-5" />
+            <span className="font-bold flex-1 text-left">{t('premium_upgrade')}</span>
+          </button>
+        )}
       </nav>
 
-      {/* 4. Ora 'authSignOut' esiste e funzionerà */}
-      <button 
+      <button
         onClick={authSignOut}
         className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 transition-colors duration-200 mt-8"
       >
         <LogOut className="w-5 h-5" />
-        <span className="font-medium">Esci</span>
+        <span className="font-medium">{t('logout')}</span>
       </button>
     </div>
+  );
+};
+
+// ============================================
+// FILE: src/components/ui/ThemeToggle.js
+// ============================================
+
+const ThemeToggle = () => {
+  const { theme, toggleTheme } = useAppContext();
+
+  return (
+    <motion.button
+      onClick={toggleTheme}
+      className={`p-2 rounded-full transition-colors ${theme === 'dark'
+        ? 'bg-dark-surface text-yellow-400 hover:bg-gray-700'
+        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+        }`}
+      whileTap={{ scale: 0.9 }}
+      whileHover={{ scale: 1.1 }}
+      aria-label="Toggle Theme"
+    >
+      <AnimatePresence mode='wait'>
+        <motion.div
+          key={theme}
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </motion.div>
+      </AnimatePresence>
+    </motion.button>
   );
 };
 
@@ -647,23 +1021,24 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
 
 const Header = ({ onMenuToggle, currentViewLabel }) => {
   const { business, pendingRequestsCount } = useAppContext();
-  
+
   return (
-    <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+    <header className="bg-white/80 dark:bg-dark-surface/80 backdrop-blur-sm border-b border-gray-200 dark:border-dark-border px-6 py-4 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={onMenuToggle}
-          className="lg:hidden p-2 -ml-2 text-gray-700 hover:bg-gray-100 rounded-full"
+          className="lg:hidden p-2 -ml-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-surface rounded-full"
         >
           <Menu className="w-6 h-6" />
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">
           {currentViewLabel}
         </h1>
       </div>
       <div className="flex items-center gap-4">
-        <button className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <Bell className="w-5 h-5 text-gray-600" />
+        <ThemeToggle />
+        <button className="relative p-2 hover:bg-gray-100 dark:hover:bg-dark-surface rounded-full transition-colors">
+          <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           {pendingRequestsCount > 0 && (
             <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
           )}
@@ -682,13 +1057,14 @@ const Header = ({ onMenuToggle, currentViewLabel }) => {
 // ============================================
 
 const Layout = ({ children, currentView, setCurrentView, onLogout, onOpenPremium }) => {
+  const { t } = useAppContext();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const views = {
-    'dashboard': 'Calendario Turni',
-    'employees': 'Gestione Dipendenti',
-    'requests': 'Richieste',
-    'settings': 'Impostazioni'
+    'dashboard': t('calendar'),
+    'employees': t('employees'),
+    'requests': t('requests'),
+    'settings': t('settings')
   };
 
   const currentViewLabel = views[currentView] || 'ShiftMate';
@@ -706,7 +1082,7 @@ const Layout = ({ children, currentView, setCurrentView, onLogout, onOpenPremium
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg flex transition-colors duration-300">
       {/* Overlay Mobile Animato */}
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -724,14 +1100,14 @@ const Layout = ({ children, currentView, setCurrentView, onLogout, onOpenPremium
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.aside
-            className="bg-white w-64 border-r border-gray-200 fixed inset-y-0 left-0 z-50 transform"
+            className="bg-white dark:bg-dark-surface w-64 border-r border-gray-200 dark:border-dark-border fixed inset-y-0 left-0 z-50 transform"
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'tween', ease: 'easeInOut', duration: 0.3 }}
           >
-            <Sidebar 
-              currentView={currentView} 
+            <Sidebar
+              currentView={currentView}
               setCurrentView={handleSetView}
               onLogout={() => { onLogout(); closeMenu(); }}
               onOpenPremium={handleOpenPremium}
@@ -739,11 +1115,11 @@ const Layout = ({ children, currentView, setCurrentView, onLogout, onOpenPremium
           </motion.aside>
         )}
       </AnimatePresence>
-      
+
       {/* Sidebar Desktop */}
-      <aside className="bg-white w-64 border-r border-gray-200 hidden lg:block fixed inset-y-0 left-0 z-20">
-        <Sidebar 
-          currentView={currentView} 
+      <aside className="bg-white dark:bg-dark-surface w-64 border-r border-gray-200 dark:border-dark-border hidden lg:block fixed inset-y-0 left-0 z-20 transition-colors duration-300">
+        <Sidebar
+          currentView={currentView}
           setCurrentView={handleSetView}
           onLogout={onLogout}
           onOpenPremium={onOpenPremium}
@@ -752,8 +1128,8 @@ const Layout = ({ children, currentView, setCurrentView, onLogout, onOpenPremium
 
       {/* Main Content */}
       <main className="flex-1 lg:ml-64">
-        <Header 
-          onMenuToggle={() => setIsMobileMenuOpen(true)} 
+        <Header
+          onMenuToggle={() => setIsMobileMenuOpen(true)}
           currentViewLabel={currentViewLabel}
         />
         <div className="p-6">
@@ -774,7 +1150,7 @@ function DashboardView({ onAddShift, onEditShift }) {
   const {
     currentWeekStart, getWeekDays, changeWeek,
     employees, shifts, getShiftsForDate, calculateWeekHours,
-    pendingRequestsCount, exportPDF, exportExcel
+    pendingRequestsCount, exportPDF, exportExcel, t, settings
   } = useAppContext(); // <-- Niente più prop drilling!
 
   return (
@@ -783,34 +1159,34 @@ function DashboardView({ onAddShift, onEditShift }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
-        <motion.button 
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between transition-colors">
+        <motion.button
           onClick={() => changeWeek(-1)}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-dark-bg rounded-lg transition-colors text-gray-600 dark:text-gray-300"
           whileTap={{ scale: 0.9 }}
         >
           <ChevronLeft className="w-5 h-5" />
         </motion.button>
-        
+
         <div className="text-center">
-          <div className="text-sm text-gray-600">Settimana</div>
-          <div className="font-bold text-gray-900">
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('week')}</div>
+          <div className="font-bold text-gray-900 dark:text-white">
             {formatDateShort(getWeekDays()[0])} - {formatDateShort(getWeekDays()[6])}
           </div>
         </div>
 
         <div className="flex gap-2">
-          <motion.button 
+          <motion.button
             onClick={() => changeWeek(0)} // Passa 0 per "Oggi"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors shadow-sm"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Oggi
+            {t('today')}
           </motion.button>
-          <motion.button 
+          <motion.button
             onClick={() => changeWeek(1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-bg rounded-lg transition-colors text-gray-600 dark:text-gray-300"
             whileTap={{ scale: 0.9 }}
           >
             <ChevronRight className="w-5 h-5" />
@@ -819,91 +1195,91 @@ function DashboardView({ onAddShift, onEditShift }) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <motion.button 
+        <motion.button
           onClick={onAddShift}
           className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-4 rounded-xl hover:shadow-lg transition-all cursor-pointer shadow"
           whileHover={{ scale: 1.05, y: -2 }}
           whileTap={{ scale: 0.95 }}
         >
           <Plus className="w-6 h-6 mb-2" />
-          <div className="font-bold">Aggiungi Turno</div>
+          <div className="font-bold">{t('add_shift')}</div>
         </motion.button>
-        
+
         {/* (Card statiche... omesso refactoring di animazione per brevità) */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-           <Users className="w-6 h-6 text-gray-400 mb-2" />
-           <div className="text-2xl font-bold text-gray-900">{employees.length}</div>
-           <div className="text-sm text-gray-600">Dipendenti</div>
+        <div className="bg-white dark:bg-dark-surface p-4 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border transition-colors">
+          <Users className="w-6 h-6 text-gray-400 mb-2" />
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{employees.length}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('employees')}</div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-           <Clock className="w-6 h-6 text-gray-400 mb-2" />
-           <div className="text-2xl font-bold text-gray-900">
-             {shifts.filter(s => getWeekDays().some(d => d.toISOString().split('T')[0] === s.date)).length}
-           </div>
-           <div className="text-sm text-gray-600">Turni questa sett.</div>
+        <div className="bg-white dark:bg-dark-surface p-4 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border transition-colors">
+          <Clock className="w-6 h-6 text-gray-400 mb-2" />
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">
+            {shifts.filter(s => getWeekDays().some(d => d.toISOString().split('T')[0] === s.date)).length}
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('shifts_this_week')}</div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-           <Bell className="w-6 h-6 text-orange-400 mb-2" />
-           <div className="text-2xl font-bold text-gray-900">{pendingRequestsCount}</div>
-           <div className="text-sm text-gray-600">Richieste pending</div>
+        <div className="bg-white dark:bg-dark-surface p-4 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border transition-colors">
+          <Bell className="w-6 h-6 text-orange-400 mb-2" />
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{pendingRequestsCount}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('pending_requests_stat')}</div>
         </div>
       </div>
 
       {/* Tabella Calendario */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px]">
             {/* ... (thead non modificato) ... */}
             <thead>
-             <tr className="bg-gray-50 border-b border-gray-200">
-               <th className="text-left p-4 font-semibold text-gray-700 w-48">Dipendente</th>
-               {getWeekDays().map((day, idx) => {
-                 const isToday = day.toDateString() === new Date().toDateString();
-                 return (
-                   <th key={idx} className={`text-center p-4 font-semibold ${isToday ? 'bg-blue-50' : ''}`}>
-                     <div className="text-xs text-gray-500">
-                       {day.toLocaleDateString('it-IT', { weekday: 'short' })}
-                     </div>
-                     <div className={`text-sm ${isToday ? 'text-blue-600 font-bold' : 'text-gray-900'}`}>
-                       {day.getDate()} {day.toLocaleDateString('it-IT', { month: 'short' })}
-                     </div>
-                   </th>
-                 );
-               })}
-               <th className="text-center p-4 font-semibold text-gray-700 w-24">Tot. Ore</th>
-             </tr>
+              <tr className="bg-gray-50 dark:bg-dark-bg border-b border-gray-200 dark:border-dark-border transition-colors">
+                <th className="text-left p-4 font-semibold text-gray-700 dark:text-gray-300 w-48">{t('employee')}</th>
+                {getWeekDays().map((day, idx) => {
+                  const isToday = day.toDateString() === new Date().toDateString();
+                  return (
+                    <th key={idx} className={`text-center p-4 font-semibold ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {day.toLocaleDateString(settings?.language === 'en' ? 'en-US' : 'it-IT', { weekday: 'short' })}
+                      </div>
+                      <div className={`text-sm ${isToday ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-900 dark:text-white'}`}>
+                        {day.getDate()} {day.toLocaleDateString(settings?.language === 'en' ? 'en-US' : 'it-IT', { month: 'short' })}
+                      </div>
+                    </th>
+                  );
+                })}
+                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300 w-24">{t('total_hours')}</th>
+              </tr>
             </thead>
             <tbody>
               {employees.filter(e => e.isActive).map((employee) => (
-                <tr key={employee.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors duration-150">
+                <tr key={employee.id} className="border-b border-gray-100 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg transition-colors duration-150">
                   <td className="p-4">
                     {/* ... (info dipendente non modificate) ... */}
                     <div className="flex items-center gap-3">
-                       <div 
-                         className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                         style={{ backgroundColor: employee.color }}
-                       >
-                         {employee.firstName[0]}{employee.lastName[0]}
-                       </div>
-                       <div>
-                         <div className="font-semibold text-gray-900">{employee.firstName} {employee.lastName}</div>
-                         <div className="text-xs text-gray-500">{employee.position}</div>
-                       </div>
-                     </div>
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                        style={{ backgroundColor: employee.color }}
+                      >
+                        {employee.firstName[0]}{employee.lastName[0]}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{employee.firstName} {employee.lastName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{employee.position}</div>
+                      </div>
+                    </div>
                   </td>
                   {getWeekDays().map((day, dayIdx) => {
                     const dayShifts = getShiftsForDate(day).filter(s => s.employeeId === employee.id);
                     const isToday = day.toDateString() === new Date().toDateString();
                     return (
-                      <td key={dayIdx} className={`p-2 align-top ${isToday ? 'bg-blue-50/50' : ''}`}>
+                      <td key={dayIdx} className={`p-2 align-top ${isToday ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                         <div className="space-y-1">
                           {dayShifts.map((shift) => (
                             <motion.div
                               key={shift.id}
                               className="text-xs p-2 rounded-lg cursor-pointer"
-                              style={{ 
-                                backgroundColor: employee.color + '20', 
-                                borderLeft: `3px solid ${employee.color}` 
+                              style={{
+                                backgroundColor: employee.color + '20',
+                                borderLeft: `3px solid ${employee.color}`
                               }}
                               onClick={() => onEditShift(shift)}
                               whileHover={{ scale: 1.05, shadow: 'lg' }}
@@ -912,7 +1288,7 @@ function DashboardView({ onAddShift, onEditShift }) {
                               <div className="font-semibold" style={{ color: employee.color }}>
                                 {shift.startTime} - {shift.endTime}
                               </div>
-                              <div className="text-gray-600 mt-1">
+                              <div className="text-gray-600 dark:text-gray-400 mt-1">
                                 {calculateHours(shift.startTime, shift.endTime)}h
                               </div>
                             </motion.div>
@@ -923,8 +1299,8 @@ function DashboardView({ onAddShift, onEditShift }) {
                   })}
                   <td className="p-4 text-center">
                     {/* ... (ore totali non modificate) ... */}
-                    <div className="font-bold text-gray-900">{calculateWeekHours(employee.id)}h</div>
-                    <div className="text-xs text-gray-500">/{employee.contractHours}h</div>
+                    <div className="font-bold text-gray-900 dark:text-white">{calculateWeekHours(employee.id)}h</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">/{employee.contractHours}h</div>
                   </td>
                 </tr>
               ))}
@@ -934,23 +1310,23 @@ function DashboardView({ onAddShift, onEditShift }) {
       </div>
 
       <div className="flex gap-4 mt-6">
-        <motion.button 
+        <motion.button
           onClick={exportPDF}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-bg transition-colors shadow-sm text-gray-700 dark:text-gray-200"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           <Download className="w-4 h-4" />
-          <span className="font-medium">Export PDF</span>
+          <span className="font-medium">{t('export_pdf')}</span>
         </motion.button>
-        <motion.button 
+        <motion.button
           onClick={exportExcel}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           <Download className="w-4 h-4" />
-          <span className="font-medium">Export Excel</span>
+          <span className="font-medium">{t('export_excel')}</span>
         </motion.button>
       </div>
     </motion.div>
@@ -962,17 +1338,17 @@ function DashboardView({ onAddShift, onEditShift }) {
 // ============================================
 
 function EmployeesView({ onAddEmployee, onEditEmployee }) {
-  const { employees, calculateWeekHours, handleDeleteEmployee } = useAppContext();
+  const { employees, calculateWeekHours, handleDeleteEmployee, t } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredEmployees = employees.filter(emp => 
+  const filteredEmployees = employees.filter(emp =>
     emp.isActive && (
       emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.position.toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
-  
+
   // Varianti per animare la lista
   const listContainerVariants = {
     hidden: { opacity: 0 },
@@ -998,40 +1374,40 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         {/* ... (Barra di ricerca non modificata) ... */}
         <div className="relative flex-1 max-w-md w-full">
-           <input
-             type="text"
-             placeholder="Cerca dipendente..."
-             value={searchTerm}
-             onChange={(e) => setSearchTerm(e.target.value)}
-             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-           />
-           <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-             <Search className="w-5 h-5 text-gray-400" />
-           </div>
-         </div>
-        <motion.button 
+          <input
+            type="text"
+            placeholder={t('search_employee')}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-surface text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+          />
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+            <Search className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+        <motion.button
           onClick={onAddEmployee}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           <Plus className="w-5 h-5" />
-          Aggiungi Dipendente
+          {t('add_employee')}
         </motion.button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px]">
             {/* ... (thead non modificato) ... */}
             <thead>
-             <tr className="bg-gray-50 border-b border-gray-200">
-               <th className="text-left p-4 font-semibold text-gray-700">Nome Completo</th>
-               <th className="text-left p-4 font-semibold text-gray-700">Posizione</th>
-               <th className="text-center p-4 font-semibold text-gray-700">Contratto (h/sett)</th>
-               <th className="text-center p-4 font-semibold text-gray-700">Ore Attuali</th>
-               <th className="text-center p-4 font-semibold text-gray-700 w-28">Azioni</th>
-             </tr>
+              <tr className="bg-gray-50 dark:bg-dark-bg border-b border-gray-200 dark:border-dark-border transition-colors">
+                <th className="text-left p-4 font-semibold text-gray-700 dark:text-gray-300">{t('full_name')}</th>
+                <th className="text-left p-4 font-semibold text-gray-700 dark:text-gray-300">{t('position')}</th>
+                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300">{t('contract_hours')}</th>
+                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300">{t('current_hours')}</th>
+                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300 w-28">{t('actions')}</th>
+              </tr>
             </thead>
             <motion.tbody
               variants={listContainerVariants}
@@ -1040,31 +1416,30 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
             >
               {filteredEmployees.length > 0 ? (
                 filteredEmployees.map((employee) => (
-                  <motion.tr 
-                    key={employee.id} 
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors duration-150"
+                  <motion.tr
+                    key={employee.id}
+                    className="border-b border-gray-100 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg transition-colors duration-150"
                     variants={listItemVariants}
                   >
                     {/* ... (td non modificati) ... */}
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                         <div 
-                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
-                           style={{ backgroundColor: employee.color }}
-                         >
-                           {employee.firstName[0]}{employee.lastName[0]}
-                         </div>
-                         <span className="font-medium text-gray-900">{employee.firstName} {employee.lastName}</span>
-                       </div>
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                          style={{ backgroundColor: employee.color }}
+                        >
+                          {employee.firstName[0]}{employee.lastName[0]}
+                        </div>
+                        <span className="font-medium text-gray-900 dark:text-white">{employee.firstName} {employee.lastName}</span>
+                      </div>
                     </td>
-                    <td className="p-4 text-gray-600">{employee.position}</td>
-                    <td className="p-4 text-center text-gray-600">{employee.contractHours}h</td>
+                    <td className="p-4 text-gray-600 dark:text-gray-400">{employee.position}</td>
+                    <td className="p-4 text-center text-gray-600 dark:text-gray-400">{employee.contractHours}h</td>
                     <td className="p-4 text-center">
-                       <span className={`font-bold ${
-                         calculateWeekHours(employee.id) > employee.contractHours ? 'text-red-500' : 'text-green-600'
-                       }`}>
-                         {calculateWeekHours(employee.id)}h
-                       </span>
+                      <span className={`font-bold ${calculateWeekHours(employee.id) > employee.contractHours ? 'text-red-500' : 'text-green-600'
+                        }`}>
+                        {calculateWeekHours(employee.id)}h
+                      </span>
                     </td>
                     <td className="p-4 text-center space-x-1">
                       <motion.button
@@ -1089,7 +1464,7 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
               ) : (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-gray-500">
-                    Nessun dipendente trovato.
+                    {t('no_employees_found')}
                   </td>
                 </tr>
               )}
@@ -1106,9 +1481,9 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
 // ============================================
 
 function RequestsView() {
-  const { 
-    requests, getEmployeeById, 
-    handleApproveRequest, handleRejectRequest 
+  const {
+    requests, getEmployeeById,
+    handleApproveRequest, handleRejectRequest, t
   } = useAppContext();
 
   const pending = requests.filter(r => r.status === 'pending');
@@ -1118,26 +1493,26 @@ function RequestsView() {
   const getStatusStyles = (status) => { /* ... (stessa funzione) ... */ };
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
       {/* Richieste Pendenti */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm p-6 transition-colors">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-orange-500" />
-          Richieste Pendenti ({pending.length})
+          {t('pending_requests_title')} ({pending.length})
         </h2>
         <div className="space-y-4">
           {pending.length > 0 ? (
             pending.map((req) => {
               const employee = getEmployeeById(req.employeeId);
               return (
-                <motion.div 
-                  key={req.id} 
-                  className="p-4 border border-yellow-200 bg-yellow-50/50 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center"
+                <motion.div
+                  key={req.id}
+                  className="p-4 border border-yellow-200 dark:border-yellow-900/50 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center transition-colors"
                   layout // Anima il layout quando viene rimosso
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1145,15 +1520,15 @@ function RequestsView() {
                 >
                   <div>
                     {/* ... (dettagli richiesta non modificati) ... */}
-                    <div className="font-bold text-gray-900">{employee?.firstName} {employee?.lastName}</div>
-                     <div className="text-sm text-gray-600 mt-1">
-                       <span className="font-medium text-yellow-700">{getRequestTypeLabel(req.type)}:</span> {req.reason}
-                     </div>
-                     {req.startDate && (
-                       <div className="text-xs text-gray-500 mt-1">
-                         Periodo: {formatDate(req.startDate)}{req.endDate && req.startDate !== req.endDate ? ` - ${formatDate(req.endDate)}` : ''}
-                       </div>
-                     )}
+                    <div className="font-bold text-gray-900 dark:text-white">{employee?.firstName} {employee?.lastName}</div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium text-yellow-700">{getRequestTypeLabel(req.type)}:</span> {req.reason}
+                    </div>
+                    {req.startDate && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {t('period')}: {formatDate(req.startDate)}{req.endDate && req.startDate !== req.endDate ? ` - ${formatDate(req.endDate)}` : ''}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 mt-3 md:mt-0">
                     <motion.button
@@ -1162,7 +1537,7 @@ function RequestsView() {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      <CheckCircle className="w-4 h-4" /> Approva
+                      <CheckCircle className="w-4 h-4" /> {t('approve')}
                     </motion.button>
                     <motion.button
                       onClick={() => handleRejectRequest(req.id)}
@@ -1170,65 +1545,31 @@ function RequestsView() {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      <XCircle className="w-4 h-4" /> Rifiuta
+                      <XCircle className="w-4 h-4" /> {t('reject')}
                     </motion.button>
                   </div>
                 </motion.div>
               );
             })
           ) : (
-             <div className="text-center p-4 text-gray-500 border border-gray-100 rounded-lg">
-               Nessuna richiesta pendente. Tutto in ordine!
-             </div>
+            <div className="text-center p-4 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-dark-border rounded-lg">
+              {t('no_pending_requests')}
+            </div>
           )}
         </div>
       </div>
 
       {/* Storico Richieste */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm p-6 transition-colors">
         {/* ... (Storico non modificato) ... */}
       </div>
     </motion.div>
   );
 }
 
-// ============================================
-// FILE: src/views/SettingsView.js
-// ============================================
 
-function SettingsView({ onOpenPremium }) {
-  const { business } = useAppContext();
 
-  return (
-    <motion.div 
-      className="space-y-8 max-w-2xl"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        {/* ... (Dettagli azienda non modificati) ... */}
-      </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-yellow-500">
-        <h2 className="text-xl font-bold text-gray-900 border-b pb-3 mb-4 flex items-center gap-2">
-          <Zap className="w-6 h-6 text-yellow-500" />
-          Piano di Abbonamento
-        </h2>
-        <p className="text-gray-700 mb-4">Attualmente sei sul piano **Base (Gratuito)**. Passa a Premium per sbloccare funzionalità avanzate.</p>
-        <motion.button
-          onClick={onOpenPremium}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:shadow-lg transition-all font-bold shadow-md"
-          whileHover={{ scale: 1.05, y: -2 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <DollarSign className="w-5 h-5" />
-          Scopri i Piani Premium
-        </motion.button>
-      </div>
-    </motion.div>
-  );
-}
 
 
 // ============================================
@@ -1236,6 +1577,7 @@ function SettingsView({ onOpenPremium }) {
 // ============================================
 
 function EmployeeModal({ employee, onSave, onClose }) {
+  const { t } = useAppContext();
   const [formData, setFormData] = useState({
     firstName: employee?.firstName || '',
     lastName: employee?.lastName || '',
@@ -1256,25 +1598,25 @@ function EmployeeModal({ employee, onSave, onClose }) {
   };
 
   return (
-    <AnimatedModal title={employee ? 'Modifica Dipendente' : 'Aggiungi Dipendente'} onClose={onClose}>
+    <AnimatedModal title={employee ? t('edit_employee') : t('create_employee')} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* ... (Campi form non modificati) ... */}
         <div className="grid grid-cols-2 gap-4">
-           <input type="text" name="firstName" placeholder="Nome" value={formData.firstName} onChange={handleChange} required className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-           <input type="text" name="lastName" placeholder="Cognome" value={formData.lastName} onChange={handleChange} required className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-         </div>
-         <input type="text" name="position" placeholder="Posizione (es. Barista)" value={formData.position} onChange={handleChange} required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-         <input type="number" name="contractHours" placeholder="Ore Contratto Settimanali" value={formData.contractHours} onChange={handleChange} required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-         <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-         <input type="tel" name="phone" placeholder="Telefono" value={formData.phone} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+          <input type="text" name="firstName" placeholder="Nome" value={formData.firstName} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+          <input type="text" name="lastName" placeholder="Cognome" value={formData.lastName} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+        </div>
+        <input type="text" name="position" placeholder="Posizione (es. Barista)" value={formData.position} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+        <input type="number" name="contractHours" placeholder="Ore Contratto Settimanali" value={formData.contractHours} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+        <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+        <input type="tel" name="phone" placeholder="Telefono" value={formData.phone} onChange={handleChange} className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
         <div className="pt-4 flex justify-end">
-          <motion.button 
-            type="submit" 
+          <motion.button
+            type="submit"
             className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            {employee ? 'Salva Modifiche' : 'Aggiungi Dipendente'}
+            {employee ? t('save_changes') : t('save_employee')}
           </motion.button>
         </div>
       </form>
@@ -1287,7 +1629,7 @@ function EmployeeModal({ employee, onSave, onClose }) {
 // ============================================
 
 function ShiftModal({ shift, onSave, onDelete, onClose }) {
-  const { employees } = useAppContext(); // Prendi i dipendenti dal context
+  const { employees, t } = useAppContext(); // Prendi i dipendenti dal context
 
   const [formData, setFormData] = useState({
     employeeId: shift?.employeeId || employees[0]?.id || '',
@@ -1308,46 +1650,46 @@ function ShiftModal({ shift, onSave, onDelete, onClose }) {
   };
 
   return (
-    <AnimatedModal title={shift ? 'Modifica Turno' : 'Crea Nuovo Turno'} onClose={onClose}>
+    <AnimatedModal title={shift ? t('edit_shift') : t('create_shift')} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* ... (Campi form non modificati) ... */}
-        <select name="employeeId" value={formData.employeeId} onChange={handleChange} required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-           <option value="" disabled>Seleziona Dipendente</option>
-           {employees.map(emp => (
-             <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.position})</option>
-           ))}
+        <select name="employeeId" value={formData.employeeId} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors">
+          <option value="" disabled>{t('select_employee')}</option>
+          {employees.map(emp => (
+            <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.position})</option>
+          ))}
         </select>
-        <input type="date" name="date" value={formData.date} onChange={handleChange} required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+        <input type="date" name="date" value={formData.date} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
         <div className="grid grid-cols-2 gap-4">
-           <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-           <input type="time" e="endTime" value={formData.endTime} onChange={handleChange} required className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+          <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+          <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
         </div>
-        <select name="type" value={formData.type} onChange={handleChange} required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-           <option value="morning">Mattina</option>
-           <option value="afternoon">Pomeriggio</option>
-           <option value="evening">Sera</option>
-           <option value="night">Notte</option>
+        <select name="type" value={formData.type} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors">
+          <option value="morning">{t('morning')}</option>
+          <option value="afternoon">{t('afternoon')}</option>
+          <option value="evening">{t('evening')}</option>
+          <option value="night">{t('night')}</option>
         </select>
-        
+
         <div className="pt-4 flex justify-between">
           {onDelete && (
-            <motion.button 
-              type="button" 
-              onClick={onDelete} 
+            <motion.button
+              type="button"
+              onClick={onDelete}
               className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium flex items-center gap-1 shadow"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Trash2 className="w-4 h-4" /> Elimina
+              <Trash2 className="w-4 h-4" /> {t('delete')}
             </motion.button>
           )}
-          <motion.button 
-            type="submit" 
+          <motion.button
+            type="submit"
             className="ml-auto px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            {shift ? 'Salva Turno' : 'Crea Turno'}
+            {shift ? t('save_shift') : t('create_shift')}
           </motion.button>
         </div>
       </form>
@@ -1365,13 +1707,13 @@ function ShiftModal({ shift, onSave, onDelete, onClose }) {
 
 function PremiumModal({ onClose }) {
   // Prendiamo l'utente (per l'email) e la funzione per le notifiche
-  const { user, showNotification } = useAppContext(); 
+  const { user, showNotification, t } = useAppContext();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Inizializza Stripe con la CHIAVE PUBBLICA che hai messo nel file .env
   // È importante farlo fuori dal render per evitare di ricaricarlo ogni volta.
 
-// SOSTITUISCI IL VECCHIO handlePremiumClick CON QUESTO:
+  // SOSTITUISCI IL VECCHIO handlePremiumClick CON QUESTO:
 
   const handlePremiumClick = async () => {
     setIsRedirecting(true);
@@ -1385,9 +1727,9 @@ function PremiumModal({ onClose }) {
     try {
       // 1. CHIAMA IL BACKEND (come prima)
       const { data, error } = await supabase.functions.invoke(
-        'create-checkout-session', 
-        { 
-          body: JSON.stringify({ email: user.email }) 
+        'create-checkout-session',
+        {
+          body: JSON.stringify({ email: user.email })
         }
       );
 
@@ -1413,50 +1755,50 @@ function PremiumModal({ onClose }) {
 
   return (
     // AnimatedModal è la funzione che abbiamo definito nel refactoring
-    <AnimatedModal title="Piani ShiftMate Premium" onClose={onClose}>
-      <div className="space-y-6">
-        <p className="text-gray-600">Scegli il piano che meglio si adatta alle tue esigenze.</p>
+    <AnimatedModal title={t('premium_plans_title')} onClose={onClose}>
+      <div className="space-y-6 text-gray-700 dark:text-gray-300">
+        <p className="text-gray-600 dark:text-gray-400">{t('premium_plans_desc')}</p>
 
         <div className="grid md:grid-cols-2 gap-4">
-          
+
           {/* --- PIANO BASE (CORRETTO) --- */}
-          <div className="border-2 border-blue-100 rounded-xl p-5 shadow-lg">
-            <h4 className="text-2xl font-bold text-blue-600">Base</h4>
-            <p className="text-4xl font-extrabold my-2 text-gray-900">
-              €0<span className="text-base font-normal text-gray-500">/mese</span>
+          <div className="border-2 border-blue-100 dark:border-blue-900/30 rounded-xl p-5 shadow-lg bg-white dark:bg-dark-surface transition-colors">
+            <h4 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{t('plan_base')}</h4>
+            <p className="text-4xl font-extrabold my-2 text-gray-900 dark:text-white">
+              €0<span className="text-base font-normal text-gray-500 dark:text-gray-400">/mese</span>
             </p>
-            <p className="text-sm text-gray-500 mb-4">Gestione essenziale dei turni.</p>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Creazione Turni Manuale</li>
-              <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Gestione Dipendenti</li>
-              <li className="flex items-center gap-2 text-blue-600 font-semibold"><Download className="w-4 h-4" /> Export Dati (PDF & CSV)</li>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('plan_base_desc')}</p>
+            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+              <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> {t('feature_manual_shifts')}</li>
+              <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> {t('feature_employees')}</li>
+              <li className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold"><Download className="w-4 h-4" /> {t('feature_export')}</li>
             </ul>
-            <button 
-              disabled 
+            <button
+              disabled
               className="w-full mt-5 py-2 bg-blue-500 text-white rounded-lg opacity-70 cursor-not-allowed font-medium"
             >
-              Piano Attuale
+              {t('current_plan')}
             </button>
           </div>
 
           {/* --- PIANO PREMIUM (ATTIVO) --- */}
-          <motion.div 
-            className="border-2 border-yellow-500 rounded-xl p-5 shadow-2xl relative bg-yellow-50"
+          <motion.div
+            className="border-2 border-yellow-500 rounded-xl p-5 shadow-2xl relative bg-yellow-50 dark:bg-yellow-900/10 transition-colors"
             whileHover={!isRedirecting ? { scale: 1.02, y: -5 } : {}}
           >
             <div className="absolute top-0 right-0 bg-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">TOP</div>
-            <h4 className="text-2xl font-bold text-yellow-700">Premium</h4>
-            <p className="text-4xl font-extrabold my-2 text-gray-900">
-              €19<span className="text-base font-normal text-gray-500">/mese</span>
+            <h4 className="text-2xl font-bold text-yellow-700 dark:text-yellow-500">{t('plan_premium')}</h4>
+            <p className="text-4xl font-extrabold my-2 text-gray-900 dark:text-white">
+              €19<span className="text-base font-normal text-gray-500 dark:text-gray-400">/mese</span>
             </p>
-            <p className="text-sm text-gray-500 mb-4">Gestione completa e ottimizzazione.</p>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Tutte le funzionalità Base</li>
-              <li className="flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-600" /> Generazione Turni Intelligente (AI)</li>
-              <li className="flex items-center gap-2"><Bell className="w-4 h-4 text-yellow-600" /> Notifiche Automatiche (SMS/Email)</li>
-              <li className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-yellow-600" /> Reportistica Avanzata e Costi</li>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('plan_premium_desc')}</p>
+            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+              <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> {t('feature_all_base')}</li>
+              <li className="flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-600 dark:text-yellow-500" /> {t('feature_ai_shifts')}</li>
+              <li className="flex items-center gap-2"><Bell className="w-4 h-4 text-yellow-600 dark:text-yellow-500" /> {t('feature_notifications')}</li>
+              <li className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-yellow-600 dark:text-yellow-500" /> {t('feature_advanced_reports')}</li>
             </ul>
-            <motion.button 
+            <motion.button
               onClick={handlePremiumClick}
               disabled={isRedirecting}
               className="w-full mt-5 py-2 bg-yellow-500 text-gray-900 rounded-lg hover:bg-yellow-600 transition-colors font-bold shadow-lg flex items-center justify-center gap-2"
@@ -1470,12 +1812,12 @@ function PremiumModal({ onClose }) {
                     animate={{ rotate: 360 }}
                     transition={{ loop: Infinity, ease: "linear", duration: 1 }}
                   />
-                  <span>Caricamento...</span>
+                  <span>{t('loading')}</span>
                 </>
               ) : (
                 <>
                   <DollarSign className="w-5 h-5" />
-                  Attiva Premium
+                  {t('activate_premium')}
                 </>
               )}
             </motion.button>
@@ -1515,7 +1857,7 @@ function App() {
 
   const openAddEmployee = () => { setSelectedEmployee(null); setShowEmployeeModal(true); };
   const openEditEmployee = (emp) => { setSelectedEmployee(emp); setShowEmployeeModal(true); };
-  
+
   const openAddShift = () => { setSelectedShift(null); setShowShiftModal(true); };
   const openEditShift = (shift) => { setSelectedShift(shift); setShowShiftModal(true); };
 
@@ -1542,7 +1884,7 @@ function App() {
       setSelectedShift(null);
     }
   };
-  
+
   // 5. FUNZIONE PER RENDERIZZARE LA VISTA CORRETTA
   //    (Rimane qui)
   const renderView = () => {
@@ -1559,7 +1901,7 @@ function App() {
         return <DashboardView onAddShift={openAddShift} onEditShift={openEditShift} />;
     }
   };
-  
+
   // 6. EFFETTO PER I REDIRECT DI STRIPE
   //    (Aggiunto)
   useEffect(() => {
@@ -1579,7 +1921,7 @@ function App() {
 
   // 7. NUOVA LOGICA DI RENDERING (IL "ROUTER")
   //    (Sostituisce il tuo vecchio 'return')
-  
+
   if (isLoading) {
     // Mostra lo spinner MENTRE controlliamo se l'utente è loggato
     return <LoadingSpinner />;
@@ -1633,12 +1975,24 @@ import { LogIn } from 'lucide-react'; // Assicurati di importare LogIn
 
 function AuthView() {
   const { authSignIn, authSignUp } = useAppContext();
-  
+
   const [isLoginView, setIsLoginView] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    firstName: '',
+    lastName: '',
+    businessName: '',
+    address: '',
+    phone: ''
+  });
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1647,99 +2001,123 @@ function AuthView() {
 
     let result;
     if (isLoginView) {
-      result = await authSignIn(email, password);
+      result = await authSignIn(formData.email, formData.password);
     } else {
-      result = await authSignUp(email, password);
+      result = await authSignUp(formData);
+
       if (!result.error) {
-        // Se la registrazione ha successo, mostra un messaggio
-        // (Supabase invierà un'email di conferma, se l'hai attivata)
-        alert('Registrazione completata! Controlla la tua email per confermare l\'account.');
-        // Rimettiamo in modalità login
+        alert('Registrazione completata! Controlla la tua email.');
         setIsLoginView(true);
       }
     }
 
-    if (result.error) {
+    if (result && result.error) {
       setError(result.error.message);
     }
-    
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg flex items-center justify-center p-4 transition-colors">
+      <div className="bg-white dark:bg-dark-surface p-8 rounded-xl shadow-lg w-full max-w-md transition-colors">
+
         <div className="flex justify-center mb-6">
           <div className="bg-blue-600 p-3 rounded-xl">
             <LogIn className="w-8 h-8 text-white" />
           </div>
         </div>
-        
-        <h2 className="text-2xl font-bold text-center mb-2 text-gray-900">
-          {isLoginView ? 'Accedi a ShiftMate' : 'Crea un Account'}
+
+        <h2 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-white">
+          {isLoginView ? 'Accedi a ShiftMate' : 'Registra la tua Attività'}
         </h2>
-        <p className="text-center text-gray-500 mb-6">
-          {isLoginView ? 'Inserisci le tue credenziali' : 'Inizia a gestire i tuoi turni'}
-        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-              placeholder="tu@email.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-              placeholder="••••••••"
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-6">
+          {!isLoginView && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  name="firstName"
+                  placeholder="Nome"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  required
+                  className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
+                />
+                <input
+                  name="lastName"
+                  placeholder="Cognome"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  required
+                  className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
+                />
+              </div>
 
-          {error && (
-            <p className="text-sm text-red-600 text-center">{error}</p>
+              <div className="border-t border-gray-200 dark:border-gray-700 my-2 pt-2">
+                <p className="text-xs text-gray-500 mb-2 uppercase font-bold">Dati Attività</p>
+                <input
+                  name="businessName"
+                  placeholder="Nome Attività (es. Bar Centrale)"
+                  value={formData.businessName}
+                  onChange={handleChange}
+                  required
+                  className="mb-3 p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
+                />
+                <input
+                  name="address"
+                  placeholder="Via, Città e Provincia"
+                  value={formData.address}
+                  onChange={handleChange}
+                  required
+                  className="mb-3 p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
+                />
+                <input
+                  name="phone"
+                  placeholder="Telefono Attività"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  required
+                  className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
+                />
+              </div>
+            </>
           )}
 
-          <motion.button
+          {/* Email e Password (sempre visibili) */}
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            onChange={handleChange}
+            required
+            className="w-full p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white"
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            onChange={handleChange}
+            required
+            className="w-full p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white"
+          />
+
+          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+
+          <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
+            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition-colors"
           >
-            {loading ? (
-              <motion.div
-                className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                animate={{ rotate: 360 }}
-                transition={{ loop: Infinity, ease: "linear", duration: 1 }}
-              />
-            ) : (
-              isLoginView ? 'Accedi' : 'Registrati'
-            )}
-          </motion.button>
+            {loading ? 'Caricamento...' : (isLoginView ? 'Accedi' : 'Registrati')}
+          </button>
         </form>
 
         <div className="text-center mt-6">
           <button
-            onClick={() => {
-              setIsLoginView(!isLoginView);
-              setError(null);
-            }}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            onClick={() => { setIsLoginView(!isLoginView); setError(null); }}
+            className="text-sm text-blue-600 hover:underline"
           >
-            {isLoginView
-              ? 'Non hai un account? Registrati'
-              : 'Hai già un account? Accedi'}
+            {isLoginView ? 'Non hai un account? Registrati ora' : 'Hai già un account? Accedi'}
           </button>
         </div>
       </div>
