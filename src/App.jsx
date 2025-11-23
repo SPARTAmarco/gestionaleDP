@@ -1720,8 +1720,8 @@ function DashboardView({ onAddShift, onEditShift, onOpenRepeatWeeksModal }) {
         </div>
       </div>
 
-      {/* Tabella Calendario */}
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden transition-colors">
+      {/* Tabella Calendario (Desktop) */}
+      <div className="hidden md:block bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px]">
             {/* ... (thead non modificato) ... */}
@@ -1816,6 +1816,80 @@ function DashboardView({ onAddShift, onEditShift, onOpenRepeatWeeksModal }) {
         </div>
       </div>
 
+      {/* Lista Verticale (Mobile) */}
+      <div className="md:hidden space-y-6">
+        {getWeekDays().map((day, idx) => {
+          const dayString = day.toISOString().split('T')[0];
+          // Raccogli tutti i turni del giorno per tutti i dipendenti attivi
+          const dayShifts = employees
+            .filter(e => e.isActive)
+            .flatMap(emp => {
+              const shiftsForDay = getShiftsForDate(day).filter(s => s.employeeId === emp.id);
+              return shiftsForDay.map(s => ({ ...s, employee: emp }));
+            })
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+          const isToday = day.toDateString() === new Date().toDateString();
+
+          return (
+            <div key={idx} className={`rounded-xl border ${isToday ? 'border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-900/10' : 'border-gray-200 bg-white dark:border-dark-border dark:bg-dark-surface'} overflow-hidden`}>
+              <div className={`p-3 border-b ${isToday ? 'border-blue-100 bg-blue-50 dark:border-blue-900 dark:bg-blue-900/20' : 'border-gray-100 bg-gray-50 dark:border-dark-border dark:bg-dark-bg'} flex justify-between items-center`}>
+                <div className="font-bold text-gray-900 dark:text-white">
+                  {day.toLocaleDateString(settings?.language === 'en' ? 'en-US' : 'it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </div>
+                <motion.button
+                  onClick={() => onAddShift(dayString)}
+                  className="p-2 bg-white dark:bg-dark-surface text-blue-600 dark:text-blue-400 rounded-full shadow-sm border border-gray-100 dark:border-dark-border"
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Plus className="w-4 h-4" />
+                </motion.button>
+              </div>
+              <div className="p-3 space-y-3">
+                {dayShifts.length > 0 ? (
+                  dayShifts.map(shift => (
+                    <motion.div
+                      key={shift.id}
+                      onClick={() => onEditShift(shift)}
+                      className="flex items-center gap-3 bg-white dark:bg-dark-surface p-3 rounded-lg border border-gray-100 dark:border-dark-border shadow-sm"
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                        style={{ backgroundColor: shift.employee.color }}
+                      >
+                        {shift.employee.firstName[0]}{shift.employee.lastName[0]}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-900 dark:text-white">
+                          {shift.employee.firstName} {shift.employee.lastName}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {shift.startTime} - {shift.endTime}
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            ({calculateHours(shift.startTime, shift.endTime)}h)
+                          </span>
+                        </div>
+                        {shift.notes && (
+                          <div className="text-xs text-gray-400 mt-1 italic truncate">
+                            {shift.notes}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-4 italic">
+                    {t('no_shifts') || "Nessun turno programmato"}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="flex gap-4 mt-6">
         <motion.button
           onClick={exportPDF}
@@ -1836,7 +1910,7 @@ function DashboardView({ onAddShift, onEditShift, onOpenRepeatWeeksModal }) {
           <span className="font-medium">{t('export_excel')}</span>
         </motion.button>
       </div>
-    </motion.div>
+    </motion.div >
   );
 }
 

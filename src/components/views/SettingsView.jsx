@@ -201,7 +201,7 @@ const SettingsView = ({ onOpenPremium }) => {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Scegli il formato per esportare i tuoi dati:
                 </p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <motion.button
                         onClick={() => handleExport('pdf')}
                         className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-500 dark:hover:border-blue-500 transition-colors bg-white dark:bg-dark-bg"
@@ -270,7 +270,7 @@ const SettingsView = ({ onOpenPremium }) => {
 
         return (
             <div className="space-y-6 max-h-[70vh] overflow-y-auto px-1">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
                         <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                             {activeEmployees.length}

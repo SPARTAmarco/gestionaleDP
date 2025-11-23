@@ -94,8 +94,8 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                 </button>
             </div>
 
-            {/* --- SEZIONE 3: TABELLA DIPENDENTI --- */}
-            <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-dark-border">
+            {/* --- SEZIONE 3: TABELLA DIPENDENTI (Desktop) --- */}
+            <div className="hidden md:block bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-dark-border">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[700px]">
                         <thead>
@@ -181,6 +181,72 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* --- SEZIONE 4: VISTA CARD (Mobile) --- */}
+            <div className="md:hidden space-y-4">
+                {filteredEmployees.length > 0 ? (
+                    filteredEmployees.map((employee) => (
+                        <div key={employee.id} className="bg-white dark:bg-dark-surface p-4 rounded-xl shadow-sm border border-gray-100 dark:border-dark-border flex flex-col gap-3">
+                            {/* Header Card: Avatar + Nome + Ruolo */}
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0"
+                                    style={{ backgroundColor: employee.color || '#ccc' }}
+                                >
+                                    {(employee.firstName?.[0] || '?')}{(employee.lastName?.[0] || '')}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-gray-900 dark:text-white text-lg">
+                                        {employee.firstName} {employee.lastName}
+                                    </div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                                        {employee.position}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Info: Ore */}
+                            <div className="flex items-center justify-between bg-gray-50 dark:bg-dark-bg p-3 rounded-lg">
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    Contratto: <span className="font-semibold text-gray-900 dark:text-white">{employee.contractHours}h</span>
+                                </div>
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    Attuali: <span className={`font-bold ${(calculateWeekHours && calculateWeekHours(employee.id) > employee.contractHours)
+                                        ? 'text-red-600 dark:text-red-400'
+                                        : 'text-green-600 dark:text-green-400'
+                                        }`}>
+                                        {calculateWeekHours ? calculateWeekHours(employee.id) : '0'}h
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Azioni */}
+                            <div className="flex gap-2 mt-1">
+                                <button
+                                    onClick={() => onEditEmployee(employee)}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg font-medium text-sm hover:bg-blue-100 transition-colors"
+                                >
+                                    <Edit2 className="w-4 h-4" /> Modifica
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteEmployee(employee.id)}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors"
+                                >
+                                    <Trash2 className="w-4 h-4" /> Elimina
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center p-8 bg-white dark:bg-dark-surface rounded-xl border border-gray-100 dark:border-dark-border">
+                        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-full inline-block mb-3">
+                            <User className="w-8 h-8 opacity-50" />
+                        </div>
+                        <p className="font-medium text-gray-900 dark:text-white">Nessun dipendente</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Modifica la ricerca o aggiungine uno.</p>
+                    </div>
+                )}
             </div>
         </motion.div>
     );
