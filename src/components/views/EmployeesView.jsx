@@ -101,7 +101,7 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                         <thead>
                             <tr className="bg-gray-50 dark:bg-dark-bg border-b border-gray-200 dark:border-dark-border">
                                 <th className="text-left p-4 font-semibold text-gray-600 dark:text-gray-300">{t('full_name') || "Nome"}</th>
-                                <th className="text-left p-4 font-semibold text-gray-600 dark:text-gray-300">{t('position') || "Ruolo"}</th>
+                                <th className="text-left p-4 font-semibold text-gray-600 dark:text-gray-300 hidden md:table-cell">{t('position') || "Ruolo"}</th>
                                 <th className="text-center p-4 font-semibold text-gray-600 dark:text-gray-300">{t('contract_hours') || "Contratto"}</th>
                                 <th className="text-center p-4 font-semibold text-gray-600 dark:text-gray-300">{t('current_hours') || "Ore Sett."}</th>
                                 <th className="text-center p-4 font-semibold text-gray-600 dark:text-gray-300 w-32">{t('actions') || "Azioni"}</th>
@@ -130,7 +130,7 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4 text-gray-700 dark:text-gray-300 font-medium">
+                                        <td className="p-4 text-gray-700 dark:text-gray-300 font-medium hidden md:table-cell">
                                             {employee.position}
                                         </td>
                                         <td className="p-4 text-center text-gray-600 dark:text-gray-400">

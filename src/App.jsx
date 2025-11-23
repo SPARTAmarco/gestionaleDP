@@ -1677,7 +1677,7 @@ function DashboardView({ onAddShift, onEditShift, onOpenRepeatWeeksModal }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <motion.button
           onClick={onAddShift}
           className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-4 rounded-xl hover:shadow-lg transition-all cursor-pointer shadow"
@@ -2716,7 +2716,7 @@ function AuthView() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg flex items-center justify-center p-4 transition-colors">
-      <div className="bg-white dark:bg-dark-surface p-8 rounded-2xl shadow-xl w-full max-w-md transition-colors">
+      <div className="bg-white dark:bg-dark-surface p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-md transition-colors">
 
         {/* Header */}
         <div className="text-center mb-8">

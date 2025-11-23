@@ -102,7 +102,7 @@ const SettingsView = ({ onOpenPremium }) => {
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">
                     Dati Personali
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome</label>
                         <input
@@ -240,10 +240,10 @@ const SettingsView = ({ onOpenPremium }) => {
     const AnalyticsView = () => {
         const weekDays = getWeekDays();
         const activeEmployees = employees?.filter(e => e.isActive) || [];
-        const weekShifts = shifts?.filter(s => 
+        const weekShifts = shifts?.filter(s =>
             weekDays.some(d => d.toISOString().split('T')[0] === s.date)
         ) || [];
-        
+
         // Calcola statistiche
         const totalHours = weekShifts.reduce((sum, shift) => {
             if (!shift.startTime || !shift.endTime) return sum;
