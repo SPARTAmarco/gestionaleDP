@@ -8,9 +8,7 @@ import Stripe from "https://esm.sh/stripe@11.1.0?target=deno&no-check"
 // --- Variabili di Configurazione ---
 // !! ASSICURATI CHE QUESTI SIANO CORRETTI !!
 const PREMIUM_PRICE_ID = "price_1SUBiW2NRceBcDBZcNPO3vUv" 
-const SUCCESS_URL = "http://localhost:3000/dashboard?payment=success" 
-const CANCEL_URL = "http://localhost:3000/dashboard?payment=cancel"  
-// NB: In produzione, cambia localhost con il tuo vero URL!
+// NB: Gli URL vengono passati dal frontend per supportare diversi ambienti
 // ------------------------------------
 
 serve(async (req) => {
@@ -33,15 +31,34 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-    const { email } = await req.json()
+    const { email, baseUrl, userId } = await req.json()
     
     if (!email) {
       throw new Error("Email non fornita dal frontend.")
     }
+    
+    if (!baseUrl) {
+      throw new Error("URL base non fornito dal frontend.")
+    }
 
-    // Crea la sessione di Checkout
+    // Costruisci gli URL di redirect - assicurati che siano URL assoluti senza trailing slash
+    // Rimuovi eventuali trailing slash da baseUrl e assicurati che sia un URL valido
+    let cleanBaseUrl = baseUrl.replace(/\/$/, '')
+    // Se baseUrl non inizia con http:// o https://, aggiungilo
+    if (!cleanBaseUrl.match(/^https?:\/\//)) {
+      cleanBaseUrl = `https://${cleanBaseUrl}`
+    }
+    
+    // Usa CHECKOUT_SESSION_ID placeholder che Stripe sostituirà automaticamente
+    const successUrl = `${cleanBaseUrl}?session_id={CHECKOUT_SESSION_ID}`
+    const cancelUrl = `${cleanBaseUrl}`
+    
+    console.log('Stripe checkout URLs:', { successUrl, cancelUrl, baseUrl, cleanBaseUrl })
+
+    // Crea la sessione di Checkout con tema scuro
     const session = await stripe.checkout.sessions.create({
       customer_email: email,
+      client_reference_id: userId, // Per identificare l'utente
       payment_method_types: ["card"],
       line_items: [
         {
@@ -50,8 +67,34 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
-      success_url: SUCCESS_URL,
-      cancel_url: CANCEL_URL,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      appearance: {
+        theme: 'night', // Tema scuro per Stripe
+        variables: {
+          colorPrimary: '#6366f1',
+          colorBackground: '#0f172a',
+          colorText: '#f1f5f9',
+          colorDanger: '#ef4444',
+          colorSuccess: '#10b981',
+          fontFamily: 'system-ui, sans-serif',
+          spacingUnit: '4px',
+          borderRadius: '8px',
+        },
+        rules: {
+          '.Input': {
+            backgroundColor: '#1e293b',
+            borderColor: '#334155',
+            color: '#f1f5f9',
+          },
+          '.Input:focus': {
+            borderColor: '#6366f1',
+          },
+          '.Label': {
+            color: '#cbd5e1',
+          },
+        },
+      },
     })
 
     // Ritorna l'ID della sessione al frontend

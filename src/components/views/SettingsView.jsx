@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     User, Lock, Globe, Moon, Calendar,
-    Mail, Bell, Shield, Download, BarChart2,
-    X, Check, Zap
+    Mail, Bell, Download, BarChart2,
+    X, Check, Zap, FileText, FileSpreadsheet
 } from 'lucide-react';
 
 // Assicurati che questo percorso punti al tuo AppContext.js
@@ -21,11 +21,19 @@ const SettingsView = ({ onOpenPremium }) => {
         toggleTheme,
         updateProfile,
         changePassword,
-        t
+        t,
+        business,
+        exportPDF,
+        exportExcel,
+        employees,
+        shifts,
+        getWeekDays,
+        calculateWeekHours
     } = useAppContext();
 
     const isPremium = user?.is_premium;
-    const [activeModal, setActiveModal] = useState(null); // 'profile' | 'password' | null
+    const isEmployee = user?.role === 'employee';
+    const [activeModal, setActiveModal] = useState(null); // 'profile' | 'password' | 'export' | 'analytics' | null
 
     // --- Modal Wrapper ---
     const Modal = ({ title, onClose, children }) => (
@@ -63,9 +71,6 @@ const SettingsView = ({ onOpenPremium }) => {
     // --- Profile Form Component ---
     // --- Profile Form Component (Aggiornato con Dati Business) ---
     const ProfileForm = () => {
-        // Prendiamo anche 'business' dal context per pre-compilare i campi
-        const { business } = useAppContext();
-
         const [formData, setFormData] = useState({
             // Dati Personali
             firstName: user?.user_metadata?.first_name || '',
@@ -130,49 +135,192 @@ const SettingsView = ({ onOpenPremium }) => {
                     />
                 </div>
 
-                {/* SEZIONE ATTIVITÀ */}
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1 mb-3 mt-6">
-                    Dettagli Attività
-                </h4>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome Attività</label>
-                    <input
-                        type="text"
-                        name="businessName"
-                        value={formData.businessName}
-                        onChange={handleChange}
-                        placeholder="es. Bar Centrale"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Indirizzo Completo</label>
-                    <input
-                        type="text"
-                        name="address"
-                        value={formData.address}
-                        onChange={handleChange}
-                        placeholder="Via Roma 123, Milano"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telefono Attività</label>
-                    <input
-                        type="text"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="02 12345678"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                </div>
+                {/* SEZIONE ATTIVITÀ - Solo per Titolari */}
+                {!isEmployee && (
+                    <>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1 mb-3 mt-6">
+                            Dettagli Attività
+                        </h4>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome Attività</label>
+                            <input
+                                type="text"
+                                name="businessName"
+                                value={formData.businessName}
+                                onChange={handleChange}
+                                placeholder="es. Bar Centrale"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Indirizzo Completo</label>
+                            <input
+                                type="text"
+                                name="address"
+                                value={formData.address}
+                                onChange={handleChange}
+                                placeholder="Via Roma 123, Milano"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telefono Attività</label>
+                            <input
+                                type="text"
+                                name="phone"
+                                value={formData.phone}
+                                onChange={handleChange}
+                                placeholder="02 12345678"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
+                    </>
+                )}
 
                 <div className="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white dark:bg-dark-surface pb-2">
                     <button type="button" onClick={() => setActiveModal(null)} className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">Annulla</button>
                     <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium">Salva Tutto</button>
                 </div>
             </form>
+        );
+    };
+
+    // --- Export Modal Component ---
+    const ExportModal = () => {
+        const handleExport = (format) => {
+            if (format === 'pdf') {
+                exportPDF();
+            } else if (format === 'excel') {
+                exportExcel();
+            }
+            setActiveModal(null);
+        };
+
+        return (
+            <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Scegli il formato per esportare i tuoi dati:
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                    <motion.button
+                        onClick={() => handleExport('pdf')}
+                        className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-500 dark:hover:border-blue-500 transition-colors bg-white dark:bg-dark-bg"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                    >
+                        <FileText className="w-8 h-8 text-red-600 dark:text-red-500 mb-2" />
+                        <span className="font-medium text-gray-900 dark:text-white">PDF</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Per stampa</span>
+                    </motion.button>
+                    <motion.button
+                        onClick={() => handleExport('excel')}
+                        className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-green-500 dark:hover:border-green-500 transition-colors bg-white dark:bg-dark-bg"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                    >
+                        <FileSpreadsheet className="w-8 h-8 text-green-600 dark:text-green-500 mb-2" />
+                        <span className="font-medium text-gray-900 dark:text-white">Excel</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Per analisi</span>
+                    </motion.button>
+                </div>
+                <div className="pt-4 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => setActiveModal(null)}
+                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                    >
+                        Annulla
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // --- Analytics View Component ---
+    const AnalyticsView = () => {
+        const weekDays = getWeekDays();
+        const activeEmployees = employees?.filter(e => e.isActive) || [];
+        const weekShifts = shifts?.filter(s => 
+            weekDays.some(d => d.toISOString().split('T')[0] === s.date)
+        ) || [];
+        
+        // Calcola statistiche
+        const totalHours = weekShifts.reduce((sum, shift) => {
+            if (!shift.startTime || !shift.endTime) return sum;
+            const [startH, startM] = shift.startTime.split(':').map(Number);
+            const [endH, endM] = shift.endTime.split(':').map(Number);
+            const shiftHours = ((endH + endM / 60) - (startH + startM / 60));
+            return sum + (shiftHours > 0 ? shiftHours : 0);
+        }, 0);
+
+        // Dipendente con più ore
+        const employeeHours = activeEmployees.map(emp => ({
+            employee: emp,
+            hours: weekShifts
+                .filter(s => s.employeeId === emp.id)
+                .reduce((sum, shift) => {
+                    if (!shift.startTime || !shift.endTime) return sum;
+                    const [startH, startM] = shift.startTime.split(':').map(Number);
+                    const [endH, endM] = shift.endTime.split(':').map(Number);
+                    const shiftHours = ((endH + endM / 60) - (startH + startM / 60));
+                    return sum + (shiftHours > 0 ? shiftHours : 0);
+                }, 0)
+        }));
+        const topEmployee = employeeHours.sort((a, b) => b.hours - a.hours)[0];
+
+        return (
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto px-1">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            {activeEmployees.length}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Dipendenti Attivi</div>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            {weekShifts.length}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Turni Questa Settimana</div>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800">
+                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                            {totalHours.toFixed(1)}h
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Ore Totali</div>
+                    </div>
+                    <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
+                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                            {activeEmployees.length > 0 ? (totalHours / activeEmployees.length).toFixed(1) : 0}h
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Media Ore/Dipendente</div>
+                    </div>
+                </div>
+
+                {topEmployee && topEmployee.hours > 0 && (
+                    <div className="bg-white dark:bg-dark-bg p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Dipendente con Più Ore</h4>
+                        <div className="flex items-center justify-between">
+                            <span className="text-gray-700 dark:text-gray-300">
+                                {topEmployee.employee.firstName} {topEmployee.employee.lastName}
+                            </span>
+                            <span className="font-bold text-blue-600 dark:text-blue-400">
+                                {topEmployee.hours.toFixed(1)}h
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                <div className="pt-4 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => setActiveModal(null)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
+                    >
+                        Chiudi
+                    </button>
+                </div>
+            </div>
         );
     };
 
@@ -284,7 +432,7 @@ const SettingsView = ({ onOpenPremium }) => {
                     onChange: toggleTheme,
                     isPremium: false
                 },
-                {
+                !isEmployee && {
                     id: 'weekStart',
                     title: t('week_start') || 'Inizio Settimana',
                     description: t('week_start_desc') || 'Giorno di inizio del calendario',
@@ -298,9 +446,9 @@ const SettingsView = ({ onOpenPremium }) => {
                     onChange: (val) => updateSettings('weekStart', val),
                     isPremium: false
                 }
-            ]
+            ].filter(Boolean)
         },
-        {
+        !isEmployee && {
             title: t('subscription') || 'Abbonamento',
             items: [
                 {
@@ -346,27 +494,17 @@ const SettingsView = ({ onOpenPremium }) => {
                 }
             ]
         },
-        {
+        !isEmployee && {
             title: t('security') || 'Sicurezza & Dati',
             items: [
-                {
-                    id: '2fa',
-                    title: t('two_factor') || 'Autenticazione a 2 Fattori',
-                    description: t('two_factor_desc') || 'Aumenta la sicurezza del tuo account',
-                    icon: Shield,
-                    type: 'toggle',
-                    value: settings?.twoFactorEnabled || false,
-                    onChange: (val) => updateSettings('twoFactorEnabled', val),
-                    isPremium: true // LOCKATO
-                },
                 {
                     id: 'export',
                     title: t('export_data') || 'Esporta Dati',
                     description: t('export_desc') || 'Scarica un backup dei tuoi dati',
                     icon: Download,
                     type: 'button',
-                    isPremium: true, // LOCKATO
-                    onClick: () => console.log('Open export')
+                    isPremium: false,
+                    onClick: () => setActiveModal('export')
                 },
                 {
                     id: 'analytics',
@@ -374,12 +512,12 @@ const SettingsView = ({ onOpenPremium }) => {
                     description: t('analytics_desc') || 'Statistiche dettagliate',
                     icon: BarChart2,
                     type: 'button',
-                    isPremium: true, // LOCKATO
-                    onClick: () => console.log('Open analytics')
+                    isPremium: false,
+                    onClick: () => setActiveModal('analytics')
                 }
             ]
         }
-    ];
+    ].filter(Boolean);
 
     return (
         <motion.div
@@ -392,7 +530,7 @@ const SettingsView = ({ onOpenPremium }) => {
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('settings_title') || 'Impostazioni'}</h2>
                     <p className="text-gray-600 dark:text-gray-400">{t('settings_subtitle') || 'Gestisci le tue preferenze e account'}</p>
                 </div>
-                {isPremium && (
+                {isPremium && !isEmployee && (
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
@@ -438,6 +576,16 @@ const SettingsView = ({ onOpenPremium }) => {
             {activeModal === 'password' && (
                 <Modal title={t('change_password') || 'Cambia Password'} onClose={() => setActiveModal(null)}>
                     <PasswordForm />
+                </Modal>
+            )}
+            {activeModal === 'export' && (
+                <Modal title={t('export_data') || 'Esporta Dati'} onClose={() => setActiveModal(null)}>
+                    <ExportModal />
+                </Modal>
+            )}
+            {activeModal === 'analytics' && (
+                <Modal title={t('analytics') || 'Analisi Avanzate'} onClose={() => setActiveModal(null)}>
+                    <AnalyticsView />
                 </Modal>
             )}
         </motion.div>

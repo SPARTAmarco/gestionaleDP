@@ -1,3 +1,6 @@
+import JoinTeamView from './components/views/JoinTeamView';
+import EmployeeDashboard from './components/views/EmployeeDashboard';
+import EmployeesView from './components/views/EmployeesView'; // Assicurati che ci sia
 import { supabase } from './supabaseClient';
 import SettingsView from './components/views/SettingsView';
 import { translations } from './utils/translations';
@@ -6,7 +9,7 @@ import {
   Calendar, Users, Bell, Settings, LogOut, Plus,
   ChevronLeft, ChevronRight, Menu, X, Clock,
   Download, TrendingUp, AlertCircle, CheckCircle,
-  Search, Filter, Edit2, Trash2, XCircle, DollarSign, Zap, Moon, Sun, Lock, Globe, Shield, Mail, User
+  Search, Filter, Edit2, Trash2, XCircle, DollarSign, Zap, Moon, Sun, Lock, Globe, Shield, Mail, User, FileSpreadsheet, LogIn, Briefcase
 } from 'lucide-react';
 // Importa i componenti di framer-motion
 import { motion, AnimatePresence } from 'framer-motion';
@@ -155,39 +158,188 @@ export const AppProvider = ({ children }) => {
   // ==== THEME STATE ====
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'light';
+      return localStorage.getItem('theme') || 'dark';
     }
-    return 'light';
+    return 'dark';
   });
   // ======================================
   const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStart(new Date()));
 
-  const [settings, setSettings] = useState({
-    publicProfile: false,
-    emailNotifications: { marketing: false, shifts: true },
-    twoFactorEnabled: false,
-    language: 'it',
-    timezone: 'Europe/Rome',
-    weekStart: 'monday',
-    compactView: false,
-    pushNotifications: false,
-    smsAlerts: false,
-    dailyDigest: false
+  // Carica le impostazioni dal localStorage all'avvio
+  const [settings, setSettings] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('shiftmate-settings');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error('Errore caricamento impostazioni:', e);
+        }
+      }
+    }
+    return {
+      publicProfile: false,
+      emailNotifications: { marketing: false, shifts: true },
+      twoFactorEnabled: false,
+      language: 'it',
+      timezone: 'Europe/Rome',
+      weekStart: 'monday',
+      compactView: false,
+      pushNotifications: false,
+      smsAlerts: false,
+      dailyDigest: false
+    };
   });
 
   const updateSettings = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings(prev => {
+      const updated = { ...prev, [key]: value };
+      // Salva nel localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('shiftmate-settings', JSON.stringify(updated));
+      }
+      return updated;
+    });
     // showNotification('Impostazione aggiornata'); // Optional: too noisy?
   };
 
   const toggleNotification = (type) => {
-    setSettings(prev => ({
-      ...prev,
-      emailNotifications: {
-        ...prev.emailNotifications,
-        [type]: !prev.emailNotifications[type]
+    setSettings(prev => {
+      const updated = {
+        ...prev,
+        emailNotifications: {
+          ...prev.emailNotifications,
+          [type]: !prev.emailNotifications[type]
+        }
+      };
+      // Salva nel localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('shiftmate-settings', JSON.stringify(updated));
       }
-    }));
+      return updated;
+    });
+  };
+  // ========================
+
+  // ==== NOTIFICHE EMAIL E PUSH ====
+  // Funzione per inviare email notifiche (simulata - in produzione usare un servizio reale)
+  const sendShiftEmailNotification = async (employee, shift, action) => {
+    if (!settings.emailNotifications?.shifts) return;
+
+    try {
+      // In produzione, qui chiameresti un servizio email (EmailJS, SendGrid, Supabase Edge Function, ecc.)
+      // Per ora simuliamo l'invio mostrando un log
+      const shiftDate = new Date(shift.date).toLocaleDateString('it-IT', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
+
+      const emailContent = {
+        to: employee.email,
+        subject: action === 'created'
+          ? `Nuovo turno assegnato - ${shiftDate}`
+          : action === 'updated'
+            ? `Turno modificato - ${shiftDate}`
+            : `Turno cancellato - ${shiftDate}`,
+        body: action === 'created'
+          ? `Ciao ${employee.firstName},\n\nTi è stato assegnato un nuovo turno:\n\nData: ${shiftDate}\nOrario: ${shift.startTime} - ${shift.endTime}\nTipo: ${shift.type}\n\nBuon lavoro!\n\nShiftMate`
+          : action === 'updated'
+            ? `Ciao ${employee.firstName},\n\nIl tuo turno è stato modificato:\n\nData: ${shiftDate}\nOrario: ${shift.startTime} - ${shift.endTime}\nTipo: ${shift.type}\n\nBuon lavoro!\n\nShiftMate`
+            : `Ciao ${employee.firstName},\n\nIl tuo turno del ${shiftDate} (${shift.startTime} - ${shift.endTime}) è stato cancellato.\n\nShiftMate`
+      };
+
+      // Simulazione: in produzione sostituire con chiamata API reale
+      console.log('📧 Email inviata:', emailContent);
+
+      // Esempio di integrazione con un servizio email (da scommentare e configurare):
+      // await fetch('https://api.emailservice.com/send', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(emailContent)
+      // });
+
+      return true;
+    } catch (error) {
+      console.error('Errore invio email:', error);
+      return false;
+    }
+  };
+
+  // Funzione per mostrare notifiche push del browser
+  const sendPushNotification = async (title, options = {}) => {
+    if (!settings.pushNotifications) return;
+
+    // Verifica se il browser supporta le notifiche
+    if (!('Notification' in window)) {
+      console.warn('Questo browser non supporta le notifiche push');
+      return;
+    }
+
+    // Richiedi permesso se non già concesso
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        console.warn('Permesso notifiche negato');
+        return;
+      }
+    }
+
+    if (Notification.permission === 'granted') {
+      try {
+        const notification = new Notification(title, {
+          icon: '/favicon.ico', // Aggiungi un'icona se disponibile
+          badge: '/favicon.ico',
+          tag: 'shiftmate-notification',
+          requireInteraction: false,
+          ...options
+        });
+
+        // Chiudi automaticamente dopo 5 secondi
+        setTimeout(() => notification.close(), 5000);
+
+        // Gestisci il click sulla notifica
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+
+        return true;
+      } catch (error) {
+        console.error('Errore notifica push:', error);
+        return false;
+      }
+    }
+  };
+
+  // Funzione helper per notificare cambiamenti turni
+  const notifyShiftChange = async (employee, shift, action) => {
+    // Notifica email
+    if (settings.emailNotifications?.shifts && employee?.email) {
+      await sendShiftEmailNotification(employee, shift, action);
+    }
+
+    // Notifica push (solo se l'utente corrente è il dipendente interessato)
+    if (settings.pushNotifications && user?.id === employee?.id) {
+      const shiftDate = new Date(shift.date).toLocaleDateString('it-IT', {
+        day: 'numeric',
+        month: 'short'
+      });
+
+      const title = action === 'created'
+        ? 'Nuovo turno assegnato'
+        : action === 'updated'
+          ? 'Turno modificato'
+          : 'Turno cancellato';
+
+      const body = action === 'created'
+        ? `${shiftDate}: ${shift.startTime} - ${shift.endTime}`
+        : action === 'updated'
+          ? `${shiftDate}: ${shift.startTime} - ${shift.endTime}`
+          : `Turno del ${shiftDate} cancellato`;
+
+      await sendPushNotification(title, { body });
+    }
   };
   // ========================
 
@@ -209,6 +361,10 @@ export const AppProvider = ({ children }) => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
   // ====================
+
+  // ==== GESTIONE PERMESSI NOTIFICHE PUSH ====
+  // Spostato dopo le definizioni delle funzioni
+  // ===========================================
 
   // ============================================
   // ==== AGGIUNGI QUESTE FUNZIONI MANCANTI ====
@@ -246,71 +402,168 @@ export const AppProvider = ({ children }) => {
   async function loadData(authUser) {
     setIsLoading(true);
     try {
-      // --- 1. CARICAMENTO PROFILO (Corretto per evitare ReferenceError) ---
-
-      // Inizializziamo profileData con un valore di default.
-      // Così se la chiamata al DB fallisce o non trova nulla, la variabile ESISTE COMUNQUE.
-      let finalProfileData = { is_premium: false };
+      // 1. CARICAMENTO PROFILO
+      let finalProfileData = { is_premium: false, role: 'employee' }; // Default prudente
 
       const { data: fetchedProfile, error: profileError } = await supabase
         .from('profiles')
-        .select('is_premium, stripe_customer_id')
+        // AGGIUNTA FONDAMENTALE: includi 'role' e 'business_id' nella select
+        .select('is_premium, stripe_customer_id, role, business_id, first_name, last_name')
         .eq('id', authUser.id)
-        .maybeSingle(); // Usa maybeSingle per evitare errori 406
+        .maybeSingle();
 
-      if (profileError) {
-        console.warn("Errore lettura profilo (uso default):", profileError.message);
-      }
-
-      // Se abbiamo trovato il profilo nel DB, sovrascriviamo il default
       if (fetchedProfile) {
         finalProfileData = fetchedProfile;
       }
 
-      // Ora possiamo usare finalProfileData senza paura che sia undefined
-      setUser({
+      // Aggiorniamo lo stato User includendo ruolo e business_id
+      // Questo è FONDAMENTALE per il routing in App.jsx
+      const completeUser = {
         ...authUser,
         ...finalProfileData
-      });
+      };
+      setUser(completeUser);
 
       // --- 2. CARICAMENTO DATI ATTIVITÀ (Business) ---
 
-      const { data: businessData, error: businessError } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('owner_id', authUser.id)
-        .maybeSingle();
+      let businessData = null;
+      let businessError = null;
+      try {
+        const { data, error } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('owner_id', authUser.id)
+          .maybeSingle();
 
-      if (businessData) {
-        // Normalizziamo il nome (gestiamo sia 'name' che 'business_name')
-        const normalizedBusiness = {
-          ...businessData,
-          name: businessData.name || businessData.business_name || ''
-        };
-        setBusiness(normalizedBusiness);
-      } else {
-        // Fallback visivo se non c'è ancora un'attività
-        setBusiness({ name: 'La tua Attività', address: 'Indirizzo non impostato' });
+        if (error) throw error;
+        businessData = data;
+      } catch (err) {
+        console.warn("Impossibile caricare business (forse sei dipendente o errore DB):", err.message);
       }
 
-      // --- 3. CARICAMENTO DIPENDENTI (MOCK - Come avevi prima) ---
-      // In futuro qui metterai la chiamata a supabase.from('employees')...
-      setEmployees([
-        { id: '1', firstName: 'Mario', lastName: 'Rossi', position: 'Barista', contractHours: 40, color: '#3B82F6', email: 'mario@test.com', phone: '333-1234567', isActive: true },
-        { id: '2', firstName: 'Laura', lastName: 'Bianchi', position: 'Cameriera', contractHours: 20, color: '#EF4444', email: 'laura@test.com', phone: '333-7654321', isActive: true },
-      ]);
+      if (businessData) {
+        console.log("Sto cercando dipendenti per il business:", businessData.id);
 
-      // Mock shifts
-      setShifts([
-        { id: '1', employeeId: '1', date: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '16:00', type: 'morning' },
-      ]);
+        const { data: realEmployees, error: empError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('business_id', businessData.id) // Prendi chiunque sia in questo business
+          .neq('id', authUser.id); // Escludi me stesso (titolare)
 
-      // Mock requests
-      setRequests([]);
+        if (empError) {
+          console.error("Errore database dipendenti:", empError);
+        } else {
+          console.log("Dipendenti trovati nel DB (Grezzi):", realEmployees);
+        }
+
+        if (realEmployees && realEmployees.length > 0) {
+          // Mappatura CRUCIALE: Database (snake_case) -> App (camelCase)
+          const formattedEmployees = realEmployees.map(emp => ({
+            id: emp.id,
+            firstName: emp.first_name || 'Nome',
+            lastName: emp.last_name || 'Cognome',
+            email: emp.email, // Aggiunto email
+            position: emp.position || 'Dipendente',
+            contractHours: emp.contract_hours || 40,
+            isActive: true, // Assumiamo attivi se sono nel DB
+            color: generateRandomColor()
+          }));
+
+          console.log("Dipendenti formattati per la grafica:", formattedEmployees);
+          setEmployees(formattedEmployees);
+        } else {
+          setEmployees([]);
+        }
+      } else {
+        setEmployees([]); // Nessun business, nessun dipendente
+      }
+
+      // LOGICA BIVIO: Sei dipendente o titolare?
+      if (finalProfileData.role === 'employee' && finalProfileData.business_id) {
+        // CASO DIPENDENTE: Carica l'azienda a cui sei stato assegnato
+        const response = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('id', finalProfileData.business_id) // Cerca per ID azienda
+          .maybeSingle();
+        businessData = response.data;
+        businessError = response.error;
+
+      } else {
+        // CASO TITOLARE (Default): Carica l'azienda che possiedi
+        const response = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('owner_id', authUser.id) // Cerca per Owner ID
+          .maybeSingle();
+        businessData = response.data;
+        businessError = response.error;
+      }
+
+      if (businessError) console.error("Errore caricamento business:", businessError);
+
+      if (businessData) {
+        setBusiness(businessData);
+      } else {
+        // Non impostare un business fittizio - se non c'è business nel DB, deve essere null
+        // Questo forzerà l'utente a creare un business prima di poter creare turni
+        setBusiness(null);
+      }
+
+      // --- 3. CARICAMENTO TURNI E RICHIESTE (Placeholder) ---
+      // --- D. CARICA TURNI (SHIFTS) ---
+      if (businessData) {
+        const { data: realShifts, error: shiftError } = await supabase
+          .from('shifts')
+          .select('*')
+          .eq('business_id', businessData.id); // Prende tutti i turni del locale
+
+        console.log("DEBUG: Shifts fetched for business", businessData.id, realShifts); // DEBUG LOG
+
+        if (realShifts) {
+          // Mappiamo da DB (start_time) a App (startTime)
+          const formattedShifts = realShifts.map(s => ({
+            id: s.id,
+            employeeId: s.employee_id,
+            date: s.date,
+            startTime: s.start_time?.slice(0, 5), // Toglie i secondi (09:00:00 -> 09:00)
+            endTime: s.end_time?.slice(0, 5),
+            type: s.type
+            // Nota: 'notes' rimosso perché non esiste nella tabella shifts
+          }));
+
+          setShifts(formattedShifts);
+        }
+      } else {
+        setShifts([]);
+      }
+
+      // --- E. CARICA RICHIESTE (REQUESTS) ---
+      if (businessData) {
+        const { data: realRequests, error: reqError } = await supabase
+          .from('requests')
+          .select('*')
+          .eq('business_id', businessData.id);
+
+        if (realRequests) {
+          const formattedRequests = realRequests.map(r => ({
+            id: r.id,
+            employeeId: r.employee_id,
+            type: r.type,
+            reason: r.reason, // Usiamo 'reason' come messaggio/motivo
+            startDate: r.start_date,
+            endDate: r.end_date,
+            status: r.status,
+            createdAt: r.created_at
+          }));
+          setRequests(formattedRequests);
+        }
+      } else {
+        setRequests([]);
+      }
 
     } catch (error) {
       console.error('Error loading data:', error);
-      showNotification('Errore caricamento dati', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -336,81 +589,25 @@ export const AppProvider = ({ children }) => {
       const { error: authError } = await supabase.auth.updateUser(updates);
       if (authError) throw authError;
 
-      // 2. AGGIORNA O CREA DATI BUSINESS
-      // Verifica se esiste già un business per questo utente
-      const { data: existingBusiness, error: checkError } = await supabase
+      // 2. AGGIORNA O CREA DATI BUSINESS (La correzione è qui)
+      // Usiamo upsert: se non esiste, lo crea.
+      const { data: updatedBusinessData, error: busError } = await supabase
         .from('businesses')
-        .select('*') // Selezioniamo tutto per controllare i nomi delle colonne
-        .eq('owner_id', user.id)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error("Errore controllo business:", checkError);
-        throw checkError;
-      }
-
-      let updatedBusinessData;
-      let busError;
-
-      // Determina il nome della colonna per il nome attività
-      // Se esiste 'business_name' usiamo quello, altrimenti 'name'
-      // Se è un nuovo inserimento, proviamo a indovinare o usiamo 'name' come default, 
-      // ma se fallisce l'insert ci darà info. Per ora assumiamo 'name' se non c'è record,
-      // oppure 'business_name' se è quello comune.
-      // Strategia: se existingBusiness c'è, controlliamo le chiavi.
-
-      let nameColumn = 'name';
-      if (existingBusiness && 'business_name' in existingBusiness) {
-        nameColumn = 'business_name';
-      }
-
-      const businessPayload = {
-        address: formData.address,
-        phone: formData.phone
-      };
-      businessPayload[nameColumn] = formData.businessName;
-
-      if (existingBusiness) {
-        // UPDATE
-        console.log(`Updating business using column: ${nameColumn}`);
-        const { data, error } = await supabase
-          .from('businesses')
-          .update(businessPayload)
-          .eq('owner_id', user.id)
-          .select()
-          .single();
-
-        updatedBusinessData = data;
-        busError = error;
-      } else {
-        // INSERT
-        // Proviamo con 'name', se fallisce potremmo dover riprovare con 'business_name'
-        // Ma per sicurezza, proviamo a vedere se possiamo essere più smart.
-        // Per ora usiamo 'name' standard, o 'business_name' se preferiamo.
-        // Mettiamo 'name' come default.
-        const insertPayload = {
-          owner_id: user.id,
+        .upsert({
+          owner_id: user.id, // La chiave per capire chi siamo
           name: formData.businessName,
           address: formData.address,
           phone: formData.phone
-        };
-
-        const { data, error } = await supabase
-          .from('businesses')
-          .insert(insertPayload)
-          .select()
-          .single();
-
-        updatedBusinessData = data;
-        busError = error;
-      }
+        }, { onConflict: 'owner_id' }) // Se trovi questo owner_id, aggiorna, altrimenti inserisci
+        .select()
+        .single();
 
       if (busError) {
-        console.error("Errore Supabase Business:", busError);
+        console.error("Errore Supabase Business:", busError); // Debug console
         throw busError;
       }
 
-      console.log("Dati salvati nel DB:", updatedBusinessData);
+      console.log("Dati salvati nel DB:", updatedBusinessData); // Verifica che i dati tornino
 
       // 3. Aggiorna Stato Locale
       setUser(prev => ({
@@ -424,13 +621,8 @@ export const AppProvider = ({ children }) => {
       }));
 
       // Aggiorna la Sidebar immediatamente con i dati freschi
-      // Normalizziamo anche qui
       if (updatedBusinessData) {
-        const normalizedBusiness = {
-          ...updatedBusinessData,
-          name: updatedBusinessData.name || updatedBusinessData.business_name || ''
-        };
-        setBusiness(normalizedBusiness);
+        setBusiness(updatedBusinessData);
       }
 
       showNotification('Salvato con successo!');
@@ -482,12 +674,10 @@ export const AppProvider = ({ children }) => {
   // --- NUOVE FUNZIONI AUTH DA ESPORRE ---
   // Modifica authSignUp per accettare l'oggetto con tutti i dati
   async function authSignUp(formData) {
-    // Estraiamo i dati
-    const { email, password, firstName, lastName, businessName, address, phone } = formData;
+    // Estraiamo i dati, incluso il ruolo (che arriva da AuthView)
+    const { email, password, firstName, lastName, businessName, address, phone, role } = formData;
 
     try {
-      // 1. Registra l'utente e salva TUTTO nei metadata (user_metadata)
-      // Non facciamo più l'insert manuale in 'businesses' qui!
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -495,15 +685,16 @@ export const AppProvider = ({ children }) => {
           data: {
             first_name: firstName,
             last_name: lastName,
-            business_name: businessName, // Salviamo qui temporaneamente
-            business_address: address,   // Salviamo qui temporaneamente
-            business_phone: phone        // Salviamo qui temporaneamente
+            role: role, // Salviamo 'owner' o 'employee'
+            // Questi campi saranno vuoti se è un dipendente, e va bene così:
+            business_name: businessName,
+            business_address: address,
+            business_phone: phone
           }
         }
       });
 
       if (error) throw error;
-
       return { data };
 
     } catch (error) {
@@ -564,51 +755,275 @@ export const AppProvider = ({ children }) => {
 
   async function handleSaveShift(formData, selectedShift) {
     try {
-      if (selectedShift) {
-        setShifts(prev => prev.map(shift =>
-          shift.id === selectedShift.id ? { ...shift, ...formData } : shift
-        ));
-        showNotification('Turno aggiornato');
-      } else {
-        const newShift = {
-          id: Date.now().toString(),
-          ...formData
-        };
-        setShifts(prev => [...prev, newShift]);
-        showNotification('Turno creato');
+      setIsLoading(true);
+
+      // Validazione dati
+      if (!business || !business.id) {
+        throw new Error('Nessuna attività selezionata. Assicurati di essere loggato come titolare.');
       }
-      return true; // Successo
+
+      if (!formData.employeeId) {
+        throw new Error('Seleziona un dipendente per il turno.');
+      }
+
+      if (!formData.date || !formData.startTime || !formData.endTime) {
+        throw new Error('Compila tutti i campi obbligatori (data, orario inizio, orario fine).');
+      }
+
+      // Prepariamo i dati per il DB (snake_case)
+      const shiftData = {
+        business_id: business.id,         // Fondamentale: collega il turno al bar
+        employee_id: formData.employeeId,
+        date: formData.date,
+        start_time: formData.startTime,   // DB usa snake_case (start_time)
+        end_time: formData.endTime,
+        type: formData.type || 'morning'   // Default se non specificato
+        // Nota: 'notes' rimosso perché non esiste nella tabella shifts
+      };
+
+      console.log('Dati turno da salvare:', shiftData); // Debug
+
+      let result;
+      let error;
+
+      if (selectedShift) {
+        // --- MODIFICA TURNO ESISTENTE ---
+        console.log('Modifica turno esistente:', selectedShift.id);
+        const { data, error: updateError } = await supabase
+          .from('shifts')
+          .update(shiftData)
+          .eq('id', selectedShift.id)
+          .select();
+        result = data;
+        error = updateError;
+      } else {
+        // --- CREA NUOVO TURNO ---
+        console.log('Creazione nuovo turno');
+        const { data, error: insertError } = await supabase
+          .from('shifts')
+          .insert([shiftData])
+          .select();
+        result = data;
+        error = insertError;
+      }
+
+      if (error) {
+        console.error('Errore Supabase completo:', error);
+        console.error('Dettagli errore:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw new Error(error.message || error.details || 'Errore nel salvare il turno nel database');
+      }
+
+      console.log('Turno salvato con successo:', result);
+
+      // Ricarichiamo TUTTI i dati per vedere le modifiche aggiornate
+      await loadData(user);
+
+      // ==== INVIO NOTIFICHE ====
+      // Trova il dipendente interessato
+      const employee = employees.find(emp => emp.id === formData.employeeId);
+      if (employee) {
+        const shiftForNotification = {
+          date: formData.date,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          type: formData.type || 'morning'
+          // Nota: 'notes' rimosso perché non esiste nella tabella shifts
+        };
+        // Invio notifiche in modo asincrono (non blocca il salvataggio)
+        notifyShiftChange(employee, shiftForNotification, selectedShift ? 'updated' : 'created').catch(err => {
+          console.warn('Errore invio notifiche:', err);
+          // Non blocchiamo il salvataggio se le notifiche falliscono
+        });
+      }
+      // ========================
+
+      showNotification(selectedShift ? 'Turno aggiornato' : 'Turno creato');
+      return true;
+
     } catch (error) {
-      showNotification('Errore nel salvare il turno', 'error');
-      return false; // Fallimento
+      console.error('Errore salvataggio turno:', error);
+      const errorMessage = error.message || 'Errore nel salvare il turno';
+      showNotification(errorMessage, 'error');
+      return false;
+    } finally {
+      setIsLoading(false);
     }
   }
 
+  // Già che ci siamo, sistemiamo anche la CANCELLAZIONE
   async function handleDeleteShift(id) {
-    showNotification('Eliminazione turno simulata.', 'error');
-    // In futuro, qui potresti mettere:
-    // setShifts(prev => prev.filter(shift => shift.id !== id));
+    try {
+      // Trova il turno prima di eliminarlo per le notifiche
+      const shiftToDelete = shifts.find(s => s.id === id);
+
+      const { error } = await supabase.from('shifts').delete().eq('id', id);
+      if (error) throw error;
+
+      // Rimuoviamo localmente per fare prima
+      setShifts(prev => prev.filter(s => s.id !== id));
+
+      // ==== INVIO NOTIFICHE ====
+      if (shiftToDelete) {
+        const employee = employees.find(emp => emp.id === shiftToDelete.employeeId);
+        if (employee) {
+          await notifyShiftChange(employee, shiftToDelete, 'deleted');
+        }
+      }
+      // ========================
+
+      showNotification('Turno eliminato');
+    } catch (error) {
+      showNotification('Errore eliminazione turno', 'error');
+    }
   }
+
+
 
   async function handleApproveRequest(id) {
     try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ status: 'approved' })
+        .eq('id', id);
+
+      if (error) throw error;
+
       setRequests(prev => prev.map(req =>
         req.id === id ? { ...req, status: 'approved' } : req
       ));
       showNotification('Richiesta approvata');
     } catch (error) {
+      console.error('Errore approvazione richiesta:', error);
       showNotification('Errore nell\'approvare la richiesta', 'error');
     }
   }
 
   async function handleRejectRequest(id) {
     try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ status: 'rejected' })
+        .eq('id', id);
+
+      if (error) throw error;
+
       setRequests(prev => prev.map(req =>
         req.id === id ? { ...req, status: 'rejected' } : req
       ));
       showNotification('Richiesta rifiutata');
     } catch (error) {
+      console.error('Errore rifiuto richiesta:', error);
       showNotification('Errore nel rifiutare la richiesta', 'error');
+    }
+  }
+
+  async function handleCreateRequest(requestData) {
+    try {
+      setIsLoading(true);
+      const { error } = await supabase
+        .from('requests')
+        .insert([{
+          business_id: business.id,
+          employee_id: user.id,
+          type: requestData.type, // 'ferie', 'permesso', 'malattia', 'altro'
+          reason: requestData.reason,
+          start_date: requestData.startDate,
+          end_date: requestData.endDate,
+          status: 'pending'
+        }]);
+
+      if (error) throw error;
+
+      await loadData(user); // Ricarica per vedere la nuova richiesta
+      showNotification('Richiesta inviata con successo');
+      return true;
+    } catch (error) {
+      console.error('Errore creazione richiesta:', error);
+      showNotification('Errore invio richiesta', 'error');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleRepeatSchedule(weeksToRepeat) {
+    try {
+      setIsLoading(true);
+      const weeks = parseInt(weeksToRepeat);
+      if (isNaN(weeks) || weeks < 1) return;
+
+      const sourceWeekStart = new Date(currentWeekStart);
+      const sourceWeekEnd = new Date(sourceWeekStart);
+      sourceWeekEnd.setDate(sourceWeekEnd.getDate() + 6);
+
+      // 1. Get source shifts
+      const sourceShifts = shifts.filter(s => {
+        const d = new Date(s.date);
+        return d >= sourceWeekStart && d <= sourceWeekEnd;
+      });
+
+      if (sourceShifts.length === 0) {
+        showNotification('Nessun turno da ripetere in questa settimana', 'error');
+        return;
+      }
+
+      for (let i = 1; i <= weeks; i++) {
+        const targetStart = new Date(sourceWeekStart);
+        targetStart.setDate(targetStart.getDate() + (7 * i));
+
+        const targetEnd = new Date(targetStart);
+        targetEnd.setDate(targetEnd.getDate() + 6);
+
+        // 2. Delete existing shifts in target week
+        const { error: deleteError } = await supabase
+          .from('shifts')
+          .delete()
+          .eq('business_id', business.id)
+          .gte('date', targetStart.toISOString().split('T')[0])
+          .lte('date', targetEnd.toISOString().split('T')[0]);
+
+        if (deleteError) throw deleteError;
+
+        // 3. Prepare new shifts
+        const newShifts = sourceShifts.map(s => {
+          const oldDate = new Date(s.date);
+          const newDate = new Date(oldDate);
+          newDate.setDate(newDate.getDate() + (7 * i));
+
+          return {
+            business_id: business.id,
+            employee_id: s.employeeId,
+            date: newDate.toISOString().split('T')[0],
+            start_time: s.startTime,
+            end_time: s.endTime,
+            type: s.type,
+            notes: s.notes || null
+          };
+        });
+
+        // 4. Insert new shifts
+        if (newShifts.length > 0) {
+          const { error: insertError } = await supabase
+            .from('shifts')
+            .insert(newShifts);
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      await loadData(user);
+      showNotification(`Pianificazione ripetuta per ${weeks} settimane`);
+
+    } catch (error) {
+      console.error('Errore ripetizione turni:', error);
+      showNotification('Errore durante la ripetizione', 'error');
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -685,6 +1100,11 @@ export const AppProvider = ({ children }) => {
     handleSaveShift,
     handleDeleteShift,
     handleApproveRequest,
+    handleRejectRequest,
+    handleRejectRequest,
+    handleCreateRequest, // <--- NUOVA FUNZIONE
+    handleRepeatSchedule, // <--- NUOVA FUNZIONE
+    exportPDF,
     exportExcel,
     t: (key) => {
       const lang = settings.language || 'it';
@@ -692,25 +1112,49 @@ export const AppProvider = ({ children }) => {
     },
     updateProfile: async (data) => {
       try {
-        // Prepara l'oggetto di aggiornamento
+        setIsLoading(true);
+
+        // 1. Aggiorna Auth (Nome Utente)
         const updates = {
           data: {
             first_name: data.firstName,
             last_name: data.lastName
           }
         };
-
-        // Se l'email è cambiata, aggiungila agli aggiornamenti
-        // NOTA: Supabase invierà una mail di conferma al nuovo indirizzo
         if (data.email && data.email !== user.email) {
           updates.email = data.email;
         }
 
-        const { error } = await supabase.auth.updateUser(updates);
+        const { error: authError } = await supabase.auth.updateUser(updates);
+        if (authError) throw authError;
 
-        if (error) throw error;
+        // 2. AGGIORNA O CREA DATI BUSINESS (solo se businessName, address o phone sono presenti)
+        if (data.businessName !== undefined || data.address !== undefined || data.phone !== undefined) {
+          const { data: updatedBusinessData, error: busError } = await supabase
+            .from('businesses')
+            .upsert({
+              owner_id: user.id,
+              name: data.businessName,
+              address: data.address,
+              phone: data.phone
+            }, { onConflict: 'owner_id' })
+            .select()
+            .single();
 
-        // Aggiorna lo stato locale immediatamente per la UI
+          if (busError) {
+            console.error("Errore Supabase Business:", busError);
+            throw busError;
+          }
+
+          console.log("Dati salvati nel DB:", updatedBusinessData);
+
+          // Aggiorna la Sidebar immediatamente con i dati freschi
+          if (updatedBusinessData) {
+            setBusiness(updatedBusinessData);
+          }
+        }
+
+        // 3. Aggiorna Stato Locale
         setUser(prev => ({
           ...prev,
           user_metadata: {
@@ -718,15 +1162,18 @@ export const AppProvider = ({ children }) => {
             first_name: data.firstName,
             last_name: data.lastName
           },
-          email: data.email // Aggiorniamo anche l'email in locale
+          email: data.email
         }));
 
-        showNotification('Profilo aggiornato con successo');
+        showNotification('Salvato con successo!');
         return true;
+
       } catch (error) {
         console.error('Error updating profile:', error);
-        showNotification('Errore aggiornamento profilo: ' + error.message, 'error');
+        showNotification('Errore: ' + error.message, 'error');
         return false;
+      } finally {
+        setIsLoading(false);
       }
     },
     changePassword: async (oldPwd, newPwd) => {
@@ -752,8 +1199,43 @@ export const AppProvider = ({ children }) => {
     // ==========================
     // ========================================
     theme,
-    toggleTheme
+    toggleTheme,
+    // Funzione per ricaricare i dati dell'utente
+    reloadUserData: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && session.user) {
+        await loadData(session.user);
+      }
+    }
   };
+
+  // ==== GESTIONE PERMESSI NOTIFICHE PUSH ====
+  useEffect(() => {
+    // Quando pushNotifications viene attivato, richiedi i permessi
+    if (settings.pushNotifications && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            console.log('Permesso notifiche push concesso');
+            // Mostra una notifica di test
+            sendPushNotification('Notifiche attivate!', {
+              body: 'Riceverai notifiche quando i tuoi turni cambiano.'
+            });
+          } else if (permission === 'denied') {
+            console.warn('Permesso notifiche negato');
+            // Disattiva automaticamente se l'utente nega
+            updateSettings('pushNotifications', false);
+            showNotification('Permesso notifiche negato. Attiva le notifiche nelle impostazioni del browser.', 'error');
+          }
+        });
+      } else if (Notification.permission === 'denied') {
+        // Se i permessi sono stati negati in precedenza, disattiva
+        updateSettings('pushNotifications', false);
+        showNotification('Permesso notifiche negato. Attiva le notifiche nelle impostazioni del browser.', 'error');
+      }
+    }
+  }, [settings.pushNotifications]);
+  // ===========================================
 
   return (
     <AppContext.Provider value={value}>
@@ -1146,11 +1628,12 @@ const Layout = ({ children, currentView, setCurrentView, onLogout, onOpenPremium
 // (Ora usa useAppContext e riceve meno props)
 // ============================================
 
-function DashboardView({ onAddShift, onEditShift }) {
+function DashboardView({ onAddShift, onEditShift, onOpenRepeatWeeksModal }) {
   const {
     currentWeekStart, getWeekDays, changeWeek,
     employees, shifts, getShiftsForDate, calculateWeekHours,
-    pendingRequestsCount, exportPDF, exportExcel, t, settings
+    pendingRequestsCount, exportPDF, exportExcel, t, settings,
+    handleRepeatSchedule // <--- Added
   } = useAppContext(); // <-- Niente più prop drilling!
 
   return (
@@ -1205,6 +1688,18 @@ function DashboardView({ onAddShift, onEditShift }) {
           <div className="font-bold">{t('add_shift')}</div>
         </motion.button>
 
+        <motion.button
+          onClick={onOpenRepeatWeeksModal}
+          className="bg-white dark:bg-dark-surface text-blue-600 dark:text-blue-400 p-4 rounded-xl hover:shadow-lg transition-all cursor-pointer shadow border border-blue-100 dark:border-blue-900"
+          whileHover={{ scale: 1.05, y: -2 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className="flex flex-col items-center">
+            <TrendingUp className="w-6 h-6 mb-2" />
+            <div className="font-bold text-sm">Ripeti Turni</div>
+          </div>
+        </motion.button>
+
         {/* (Card statiche... omesso refactoring di animazione per brevità) */}
         <div className="bg-white dark:bg-dark-surface p-4 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border transition-colors">
           <Users className="w-6 h-6 text-gray-400 mb-2" />
@@ -1236,13 +1731,24 @@ function DashboardView({ onAddShift, onEditShift }) {
                 {getWeekDays().map((day, idx) => {
                   const isToday = day.toDateString() === new Date().toDateString();
                   return (
-                    <th key={idx} className={`text-center p-4 font-semibold ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                    <th key={idx} className={`text-center p-4 font-semibold group relative ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {day.toLocaleDateString(settings?.language === 'en' ? 'en-US' : 'it-IT', { weekday: 'short' })}
                       </div>
                       <div className={`text-sm ${isToday ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-900 dark:text-white'}`}>
                         {day.getDate()} {day.toLocaleDateString(settings?.language === 'en' ? 'en-US' : 'it-IT', { month: 'short' })}
                       </div>
+
+                      {/* Quick Add Button */}
+                      <motion.button
+                        onClick={() => onAddShift(day.toISOString().split('T')[0])}
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full transition-opacity"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        title={t('add_shift')}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </motion.button>
                     </th>
                   );
                 })}
@@ -1287,6 +1793,7 @@ function DashboardView({ onAddShift, onEditShift }) {
                             >
                               <div className="font-semibold" style={{ color: employee.color }}>
                                 {shift.startTime} - {shift.endTime}
+                                {shift.notes && <span className="ml-1 text-xs">💬</span>}
                               </div>
                               <div className="text-gray-600 dark:text-gray-400 mt-1">
                                 {calculateHours(shift.startTime, shift.endTime)}h
@@ -1321,11 +1828,11 @@ function DashboardView({ onAddShift, onEditShift }) {
         </motion.button>
         <motion.button
           onClick={exportExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-bg transition-colors shadow-sm text-gray-700 dark:text-gray-200"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Download className="w-4 h-4" />
+          <FileSpreadsheet className="w-4 h-4 text-green-600 dark:text-green-500" />
           <span className="font-medium">{t('export_excel')}</span>
         </motion.button>
       </div>
@@ -1333,148 +1840,7 @@ function DashboardView({ onAddShift, onEditShift }) {
   );
 }
 
-// ============================================
-// FILE: src/views/EmployeesView.js
-// ============================================
 
-function EmployeesView({ onAddEmployee, onEditEmployee }) {
-  const { employees, calculateWeekHours, handleDeleteEmployee, t } = useAppContext();
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredEmployees = employees.filter(emp =>
-    emp.isActive && (
-      emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.position.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
-
-  // Varianti per animare la lista
-  const listContainerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.05, // Applica un ritardo a ogni figlio
-      },
-    },
-  };
-
-  const listItemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 },
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        {/* ... (Barra di ricerca non modificata) ... */}
-        <div className="relative flex-1 max-w-md w-full">
-          <input
-            type="text"
-            placeholder={t('search_employee')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-surface text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-          />
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-            <Search className="w-5 h-5 text-gray-400" />
-          </div>
-        </div>
-        <motion.button
-          onClick={onAddEmployee}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Plus className="w-5 h-5" />
-          {t('add_employee')}
-        </motion.button>
-      </div>
-
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden transition-colors">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            {/* ... (thead non modificato) ... */}
-            <thead>
-              <tr className="bg-gray-50 dark:bg-dark-bg border-b border-gray-200 dark:border-dark-border transition-colors">
-                <th className="text-left p-4 font-semibold text-gray-700 dark:text-gray-300">{t('full_name')}</th>
-                <th className="text-left p-4 font-semibold text-gray-700 dark:text-gray-300">{t('position')}</th>
-                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300">{t('contract_hours')}</th>
-                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300">{t('current_hours')}</th>
-                <th className="text-center p-4 font-semibold text-gray-700 dark:text-gray-300 w-28">{t('actions')}</th>
-              </tr>
-            </thead>
-            <motion.tbody
-              variants={listContainerVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((employee) => (
-                  <motion.tr
-                    key={employee.id}
-                    className="border-b border-gray-100 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg transition-colors duration-150"
-                    variants={listItemVariants}
-                  >
-                    {/* ... (td non modificati) ... */}
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
-                          style={{ backgroundColor: employee.color }}
-                        >
-                          {employee.firstName[0]}{employee.lastName[0]}
-                        </div>
-                        <span className="font-medium text-gray-900 dark:text-white">{employee.firstName} {employee.lastName}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-gray-600 dark:text-gray-400">{employee.position}</td>
-                    <td className="p-4 text-center text-gray-600 dark:text-gray-400">{employee.contractHours}h</td>
-                    <td className="p-4 text-center">
-                      <span className={`font-bold ${calculateWeekHours(employee.id) > employee.contractHours ? 'text-red-500' : 'text-green-600'
-                        }`}>
-                        {calculateWeekHours(employee.id)}h
-                      </span>
-                    </td>
-                    <td className="p-4 text-center space-x-1">
-                      <motion.button
-                        onClick={() => onEditEmployee(employee)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </motion.button>
-                      <motion.button
-                        onClick={() => handleDeleteEmployee(employee.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </motion.button>
-                    </td>
-                  </motion.tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="5" className="p-8 text-center text-gray-500">
-                    {t('no_employees_found')}
-                  </td>
-                </tr>
-              )}
-            </motion.tbody>
-          </table>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 // ============================================
 // FILE: src/views/RequestsView.js
@@ -1561,7 +1927,35 @@ function RequestsView() {
 
       {/* Storico Richieste */}
       <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm p-6 transition-colors">
-        {/* ... (Storico non modificato) ... */}
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-gray-500" />
+          {t('requests_history') || 'Storico Richieste'}
+        </h2>
+        <div className="space-y-4">
+          {history.length > 0 ? (
+            history.map((req) => {
+              const employee = getEmployeeById(req.employeeId);
+              return (
+                <div key={req.id} className="p-4 border border-gray-100 dark:border-dark-border rounded-lg flex justify-between items-center opacity-75 hover:opacity-100 transition-opacity">
+                  <div>
+                    <div className="font-bold text-gray-900 dark:text-white">{employee?.firstName} {employee?.lastName}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <span className={`font-medium ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>
+                        {req.status === 'approved' ? (t('approved') || 'Approvata') : (t('rejected') || 'Rifiutata')}
+                      </span>
+                      : {req.reason}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {new Date(req.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center text-gray-500">{t('no_history') || 'Nessuna richiesta nello storico'}</div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -1576,7 +1970,7 @@ function RequestsView() {
 // FILE: src/components/modals/EmployeeModal.js
 // ============================================
 
-function EmployeeModal({ employee, onSave, onClose }) {
+function EmployeeModal({ employee, onSave, onClose, readOnly = false }) {
   const { t } = useAppContext();
   const [formData, setFormData] = useState({
     firstName: employee?.firstName || '',
@@ -1594,29 +1988,121 @@ function EmployeeModal({ employee, onSave, onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) return;
     onSave({ ...formData, contractHours: Number(formData.contractHours) });
   };
 
   return (
-    <AnimatedModal title={employee ? t('edit_employee') : t('create_employee')} onClose={onClose}>
+    <AnimatedModal title={employee ? (readOnly ? (t('employee_details') || 'Dettagli Dipendente') : t('edit_employee')) : t('create_employee')} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* ... (Campi form non modificati) ... */}
         <div className="grid grid-cols-2 gap-4">
-          <input type="text" name="firstName" placeholder="Nome" value={formData.firstName} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
-          <input type="text" name="lastName" placeholder="Cognome" value={formData.lastName} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+          <input disabled={readOnly} type="text" name="firstName" placeholder="Nome" value={formData.firstName} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+          <input disabled={readOnly} type="text" name="lastName" placeholder="Cognome" value={formData.lastName} onChange={handleChange} required className="p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
         </div>
-        <input type="text" name="position" placeholder="Posizione (es. Barista)" value={formData.position} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
-        <input type="number" name="contractHours" placeholder="Ore Contratto Settimanali" value={formData.contractHours} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
-        <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
-        <input type="tel" name="phone" placeholder="Telefono" value={formData.phone} onChange={handleChange} className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" />
-        <div className="pt-4 flex justify-end">
+        <input disabled={readOnly} type="text" name="position" placeholder="Posizione (es. Barista)" value={formData.position} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+        <input disabled={readOnly} type="number" name="contractHours" placeholder="Ore Contratto Settimanali" value={formData.contractHours} onChange={handleChange} required className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+        <input disabled={readOnly} type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+        <input disabled={readOnly} type="tel" name="phone" placeholder="Telefono" value={formData.phone} onChange={handleChange} className="w-full p-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+
+        {!readOnly && (
+          <div className="pt-4 flex justify-end">
+            <motion.button
+              type="submit"
+              className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {employee ? t('save_changes') : t('save_employee')}
+            </motion.button>
+          </div>
+        )}
+      </form>
+    </AnimatedModal>
+  );
+}
+
+// ============================================
+// FILE: src/components/modals/EmailVerificationModal.js
+// ============================================
+
+function EmailVerificationModal({ message, onClose }) {
+  return (
+    <AnimatedModal title="Verifica Email" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+            <Mail className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          </div>
+        </div>
+        <p className="text-center text-gray-700 dark:text-gray-300 text-lg">
+          {message}
+        </p>
+        <div className="pt-4 flex justify-center">
+          <motion.button
+            onClick={onClose}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Ho capito
+          </motion.button>
+        </div>
+      </div>
+    </AnimatedModal>
+  );
+}
+
+// ============================================
+// FILE: src/components/modals/RepeatWeeksModal.js
+// ============================================
+
+function RepeatWeeksModal({ onConfirm, onClose }) {
+  const [weeks, setWeeks] = useState('');
+  const { t } = useAppContext();
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const weeksNum = parseInt(weeks);
+    if (!isNaN(weeksNum) && weeksNum > 0) {
+      onConfirm(weeksNum);
+      onClose();
+    }
+  };
+
+  return (
+    <AnimatedModal title="Ripeti Pianificazione" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-gray-700 dark:text-gray-300">
+          Per quante settimane future vuoi ripetere questa pianificazione?
+        </p>
+        <input
+          type="number"
+          min="1"
+          max="52"
+          value={weeks}
+          onChange={(e) => setWeeks(e.target.value)}
+          placeholder="Es. 1, 4, 8..."
+          required
+          className="w-full p-3 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors text-center text-2xl font-bold"
+          autoFocus
+        />
+        <div className="pt-4 flex justify-between">
+          <motion.button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Annulla
+          </motion.button>
           <motion.button
             type="submit"
             className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            {employee ? t('save_changes') : t('save_employee')}
+            Conferma
           </motion.button>
         </div>
       </form>
@@ -1628,15 +2114,16 @@ function EmployeeModal({ employee, onSave, onClose }) {
 // FILE: src/components/modals/ShiftModal.js
 // ============================================
 
-function ShiftModal({ shift, onSave, onDelete, onClose }) {
+function ShiftModal({ shift, initialDate, onSave, onDelete, onClose }) {
   const { employees, t } = useAppContext(); // Prendi i dipendenti dal context
 
   const [formData, setFormData] = useState({
     employeeId: shift?.employeeId || employees[0]?.id || '',
-    date: shift?.date || new Date().toISOString().split('T')[0],
+    date: shift?.date || initialDate || new Date().toISOString().split('T')[0],
     startTime: shift?.startTime || '09:00',
     endTime: shift?.endTime || '17:00',
-    type: shift?.type || 'morning',
+    type: shift?.type || 'morning'
+    // Nota: 'notes' rimosso perché non esiste nella tabella shifts del database
   });
 
   const handleChange = (e) => {
@@ -1670,6 +2157,7 @@ function ShiftModal({ shift, onSave, onDelete, onClose }) {
           <option value="evening">{t('evening')}</option>
           <option value="night">{t('night')}</option>
         </select>
+        {/* Campo notes rimosso perché non esiste nella tabella shifts del database */}
 
         <div className="pt-4 flex justify-between">
           {onDelete && (
@@ -1725,11 +2213,18 @@ function PremiumModal({ onClose }) {
     }
 
     try {
-      // 1. CHIAMA IL BACKEND (come prima)
+      // Ottieni l'URL base dell'applicazione
+      const baseUrl = window.location.origin;
+
+      // 1. CHIAMA IL BACKEND con email, baseUrl e userId
       const { data, error } = await supabase.functions.invoke(
         'create-checkout-session',
         {
-          body: JSON.stringify({ email: user.email })
+          body: JSON.stringify({
+            email: user.email,
+            baseUrl: baseUrl,
+            userId: user.id
+          })
         }
       );
 
@@ -1838,8 +2333,10 @@ function PremiumModal({ onClose }) {
 // ============================================
 
 function App() {
+  // All'inizio della funzione AppProvider o App:
+  const [business, setBusiness] = useState(null); // Deve essere inizializzato a null, non undefined
   // 1. PRENDI LO STATO GLOBALE
-  const { user, isLoading, showNotification } = useAppContext();
+  const { user, isLoading, showNotification, reloadUserData } = useAppContext();
 
   // 2. STATO DI NAVIGAZIONE (Rimane qui)
   const [currentView, setCurrentView] = useState('dashboard');
@@ -1847,18 +2344,26 @@ function App() {
   // 3. STATO DEI MODALI (Rimane qui)
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
+  const [modalInitialDate, setModalInitialDate] = useState(null); // Nuovo stato per la data iniziale
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [selectedShift, setSelectedShift] = useState(null);
+  const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState('');
+  const [showRepeatWeeksModal, setShowRepeatWeeksModal] = useState(false);
 
   // 4. FUNZIONI HELPER PER I MODALI (Rimangono qui)
   //    (Prendiamo le funzioni di salvataggio dal context)
-  const { handleSaveEmployee, handleSaveShift, handleDeleteShift } = useAppContext();
+  const { handleSaveEmployee, handleSaveShift, handleDeleteShift, handleRepeatSchedule } = useAppContext();
 
   const openAddEmployee = () => { setSelectedEmployee(null); setShowEmployeeModal(true); };
   const openEditEmployee = (emp) => { setSelectedEmployee(emp); setShowEmployeeModal(true); };
 
-  const openAddShift = () => { setSelectedShift(null); setShowShiftModal(true); };
+  const openAddShift = (date = null) => {
+    setModalInitialDate(date);
+    setSelectedShift(null);
+    setShowShiftModal(true);
+  };
   const openEditShift = (shift) => { setSelectedShift(shift); setShowShiftModal(true); };
 
   const onSaveEmployee = async (formData) => {
@@ -1890,95 +2395,244 @@ function App() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <DashboardView onAddShift={openAddShift} onEditShift={openEditShift} />;
+        return <DashboardView onAddShift={openAddShift} onEditShift={openEditShift} onOpenRepeatWeeksModal={() => setShowRepeatWeeksModal(true)} />;
       case 'employees':
+        // ECCOLO QUI:
         return <EmployeesView onAddEmployee={openAddEmployee} onEditEmployee={openEditEmployee} />;
       case 'requests':
         return <RequestsView />;
       case 'settings':
         return <SettingsView onOpenPremium={() => setShowPremiumModal(true)} />;
       default:
-        return <DashboardView onAddShift={openAddShift} onEditShift={openEditShift} />;
+        return <DashboardView onAddShift={openAddShift} onEditShift={openEditShift} onOpenRepeatWeeksModal={() => setShowRepeatWeeksModal(true)} />;
     }
   };
 
   // 6. EFFETTO PER I REDIRECT DI STRIPE
-  //    (Aggiunto)
+  //    Gestisce redirect da Stripe Checkout e aggiorna is_premium
   useEffect(() => {
+    const currentPath = window.location.pathname;
     const queryParams = new URLSearchParams(window.location.search);
-    if (queryParams.has('payment') && queryParams.get('payment') === 'success') {
-      // Usiamo showNotification (dal context) per mostrare il messaggio
-      showNotification('Benvenuto in Premium! Il tuo account è stato aggiornato.', 'success');
+    const sessionId = queryParams.get('session_id');
+    const wasCanceled = queryParams.get('canceled'); // Stripe può aggiungere questo parametro
+
+    // Pulisci subito l'URL da path non desiderati (success, declined, canceled, ecc.)
+    const needsCleanup =
+      currentPath.includes('/success') ||
+      currentPath.includes('/declined') ||
+      currentPath.includes('/canceled') ||
+      currentPath.includes('/failed');
+
+    if (needsCleanup) {
+      window.history.replaceState(null, null, '/');
+    }
+
+    // CASO 1: Ritorno da Stripe con session_id (pagamento completato o tentato)
+    if (sessionId) {
+      const verifyPayment = async () => {
+        try {
+          console.log('🔍 Verifica pagamento per session_id:', sessionId);
+
+          const { data, error } = await supabase.functions.invoke(
+            'verify-payment',
+            {
+              body: JSON.stringify({ session_id: sessionId })
+            }
+          );
+
+          console.log('📥 Risposta verify-payment:', { data, error });
+
+          if (error) {
+            console.error('❌ Errore nella chiamata verify-payment:', error);
+            console.error('Dettagli errore:', JSON.stringify(error, null, 2));
+            throw new Error(error.message || error.error || 'Errore sconosciuto');
+          }
+
+          if (data && data.success) {
+            console.log('✅ Pagamento verificato con successo!');
+            console.log('Dettagli risposta:', data);
+
+            // Aspetta un momento per assicurarsi che il database sia aggiornato
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Ricarica i dati dell'utente per ottenere i dati aggiornati
+            console.log('🔄 Ricarico dati utente...');
+            await reloadUserData();
+
+            // Verifica che is_premium sia stato aggiornato - se non lo è, aggiorna direttamente
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session && session.user) {
+              const { data: profileCheck, error: checkError } = await supabase
+                .from('profiles')
+                .select('is_premium')
+                .eq('id', session.user.id)
+                .single();
+
+              console.log('🔍 Verifica finale is_premium:', profileCheck);
+              console.log('Errore verifica:', checkError);
+
+              if (profileCheck && profileCheck.is_premium) {
+                showNotification('🎉 Benvenuto in Premium! Il tuo account è stato aggiornato.', 'success');
+              } else {
+                console.warn('⚠️ is_premium non ancora aggiornato, aggiorno direttamente dal frontend...');
+
+                // Fallback: aggiorna direttamente dal frontend
+                const { error: directUpdateError, data: directUpdateData } = await supabase
+                  .from('profiles')
+                  .update({ is_premium: true })
+                  .eq('id', session.user.id)
+                  .select();
+
+                console.log('Risultato aggiornamento diretto:', { directUpdateError, directUpdateData });
+
+                if (directUpdateError) {
+                  console.error('Errore aggiornamento diretto:', directUpdateError);
+                  showNotification('Pagamento completato ma errore nell\'aggiornamento. Contatta il supporto.', 'error');
+                } else {
+                  // Ricarica i dati dopo l'aggiornamento diretto
+                  await reloadUserData();
+                  showNotification('🎉 Benvenuto in Premium! Il tuo account è stato aggiornato.', 'success');
+                }
+              }
+            }
+          } else {
+            // Pagamento fallito o non completato
+            console.warn('⚠️ Pagamento non completato:', data);
+            const message = data?.message || 'Il pagamento non è stato completato.';
+            showNotification(message, 'error');
+          }
+        } catch (error) {
+          console.error("❌ Errore nella verifica del pagamento:", error);
+          console.error("Stack trace:", error.stack);
+          showNotification(`Errore: ${error.message}. Contatta il supporto se il problema persiste.`, 'error');
+        } finally {
+          // Pulisce l'URL rimuovendo tutti i parametri query
+          window.history.replaceState(null, null, '/');
+        }
+      };
+
+      verifyPayment();
+    }
+    // CASO 2: Ritorno da Stripe con cancellazione esplicita
+    else if (wasCanceled === 'true') {
+      // L'utente ha annullato il pagamento su Stripe
+      console.log('❌ Pagamento annullato dall\'utente');
+      showNotification('Pagamento annullato. Puoi sempre attivare Premium in seguito!', 'info');
       // Pulisce l'URL
-      window.history.replaceState(null, null, window.location.pathname);
+      window.history.replaceState(null, null, '/');
     }
-    if (queryParams.has('payment') && queryParams.get('payment') === 'cancel') {
-      showNotification('Pagamento annullato. Sei ancora sul piano Base.', 'error');
-      window.history.replaceState(null, null, window.location.pathname);
-    }
-  }, [showNotification]); // Dipende da showNotification
+  }, [showNotification, reloadUserData]); // Dipende da showNotification e reloadUserData
 
 
   // 7. NUOVA LOGICA DI RENDERING (IL "ROUTER")
   //    (Sostituisce il tuo vecchio 'return')
 
-  if (isLoading) {
-    // Mostra lo spinner MENTRE controlliamo se l'utente è loggato
-    return <LoadingSpinner />;
+  // ... (codice precedente di App.jsx) ...
+
+  // --- BLOCCO DI ROUTING DEFINITIVO ---
+
+  if (isLoading) return <LoadingSpinner />;
+
+  // 1. Se non sei loggato -> Login
+  if (!user) return <AuthView />;
+
+  // 2. DETERMINAZIONE RUOLO (Logica Rafforzata)
+  // Sei un Titolare SE:
+  // - Il DB dice che il tuo ruolo è 'owner'
+  // - OPPURE i metadata di registrazione dicono 'owner'
+  /// CORREZIONE QUI: Uso il ?. (optional chaining) per evitare il crash se business è null
+  const isOwner =
+    (user?.role === 'owner') ||
+    (user?.user_metadata?.role === 'owner') ||
+    (business?.owner_id === user?.id); // <--- Questo punto interrogativo salva l'app
+
+  const hasBusiness = user?.business_id || user?.user_metadata?.business_id;
+
+  // --- CASO A: SEI UN TITOLARE ---
+  if (isOwner) {
+    return (
+      <>
+        <Layout
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          onOpenPremium={() => setShowPremiumModal(true)}
+        >
+          {renderView()}
+        </Layout>
+
+        <Notification />
+
+        {/* Modali del Titolare */}
+        {showEmployeeModal && (
+          <EmployeeModal
+            employee={selectedEmployee}
+            onSave={onSaveEmployee}
+            onClose={() => setShowEmployeeModal(false)}
+            readOnly={!!selectedEmployee}
+          />
+        )}
+        {showShiftModal && (
+          <ShiftModal
+            shift={selectedShift}
+            initialDate={modalInitialDate}
+            onSave={onSaveShift}
+            onDelete={selectedShift ? onDeleteShift : null}
+            onClose={() => setShowShiftModal(false)}
+          />
+        )}
+        {showPremiumModal && (
+          <PremiumModal onClose={() => setShowPremiumModal(false)} />
+        )}
+        {showRepeatWeeksModal && (
+          <RepeatWeeksModal
+            onConfirm={(weeks) => {
+              handleRepeatSchedule(weeks.toString());
+              setShowRepeatWeeksModal(false);
+            }}
+            onClose={() => setShowRepeatWeeksModal(false)}
+          />
+        )}
+      </>
+    );
   }
 
-  if (!user) {
-    // Se NON c'è utente, mostra la pagina di Login/Registro
-    return <AuthView />;
+  // --- CASO B: SEI UN DIPENDENTE ---
+  // Se il codice arriva qui, significa che isOwner è false.
+
+  // Se non hai ancora un team -> Schermata "Unisciti al Team"
+  if (!hasBusiness) {
+    return (
+      <JoinTeamView
+        onCreateBusiness={async () => {
+          // Usa direttamente 'supabase' che è importato in cima al file
+          await supabase.auth.signOut();
+          window.location.reload();
+        }}
+      />
+    );
   }
 
-  // Se l'utente C'È, mostra la app principale
+  // Se hai un team -> Dashboard Dipendente
   return (
     <>
-      <Layout
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        // onLogout non serve più, Sidebar lo gestisce da solo
-        onOpenPremium={() => setShowPremiumModal(true)}
-      >
-        {renderView()}
-      </Layout>
-
+      <EmployeeDashboard />
       <Notification />
-
-      {/* Modali (rimangono uguali) */}
-      {showEmployeeModal && (
-        <EmployeeModal
-          employee={selectedEmployee}
-          onSave={onSaveEmployee}
-          onClose={() => setShowEmployeeModal(false)}
-        />
-      )}
-
-      {showShiftModal && (
-        <ShiftModal
-          shift={selectedShift}
-          onSave={onSaveShift}
-          onDelete={selectedShift ? onDeleteShift : null}
-          onClose={() => setShowShiftModal(false)}
-        />
-      )}
-
-      {showPremiumModal && (
-        <PremiumModal onClose={() => setShowPremiumModal(false)} />
-      )}
     </>
   );
-}
 
-import { LogIn } from 'lucide-react'; // Assicurati di importare LogIn
+} // Fine della funzione App
+
+
 
 function AuthView() {
   const { authSignIn, authSignUp } = useAppContext();
 
   const [isLoginView, setIsLoginView] = useState(true);
+  const [userType, setUserType] = useState('owner'); // 'owner' | 'employee'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState('');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -1996,134 +2650,226 @@ function AuthView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("Form submitted. UserType:", userType, "IsLogin:", isLoginView); // DEBUG
+
+    // VALIDAZIONE MANUALE
+    if (!formData.email || !formData.password) {
+      setError("Email e Password sono obbligatorie.");
+      return;
+    }
+    if (!isLoginView) {
+      if (!formData.firstName || !formData.lastName) {
+        setError("Nome e Cognome sono obbligatori.");
+        return;
+      }
+      if (userType === 'owner' && (!formData.businessName || !formData.address || !formData.phone)) {
+        setError("Tutti i dati dell'attività sono obbligatori.");
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
     let result;
-    if (isLoginView) {
-      result = await authSignIn(formData.email, formData.password);
-    } else {
-      result = await authSignUp(formData);
+    try {
+      if (isLoginView) {
+        // LOGIN
+        console.log("Attempting login for:", formData.email); // DEBUG
+        result = await authSignIn(formData.email, formData.password);
+      } else {
+        // REGISTRAZIONE
+        console.log("Attempting registration as:", userType); // DEBUG
+        const finalData = {
+          ...formData,
+          role: userType,
+          businessName: userType === 'owner' ? formData.businessName : '',
+          address: userType === 'owner' ? formData.address : '',
+          phone: userType === 'owner' ? formData.phone : '',
+        };
+        console.log("Registration data:", finalData); // DEBUG
 
-      if (!result.error) {
-        alert('Registrazione completata! Controlla la tua email.');
-        setIsLoginView(true);
+        result = await authSignUp(finalData);
+
+        if (!result.error) {
+          console.log("Registration success!"); // DEBUG
+          // Mostra modale personalizzata invece di alert
+          setEmailVerificationMessage(userType === 'owner'
+            ? 'Attività registrata! Controlla la tua email per confermare.'
+            : 'Account creato! Accedi per unirti al team.');
+          setShowEmailVerificationModal(true);
+          setIsLoginView(true);
+        }
       }
-    }
 
-    if (result && result.error) {
-      setError(result.error.message);
+      if (result.error) {
+        console.error("Auth error:", result.error); // DEBUG
+        setError(result.error.message || "Si è verificato un errore sconosciuto.");
+      }
+    } catch (err) {
+      console.error("Unexpected error in handleSubmit:", err); // DEBUG
+      setError("Errore imprevisto: " + err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg flex items-center justify-center p-4 transition-colors">
-      <div className="bg-white dark:bg-dark-surface p-8 rounded-xl shadow-lg w-full max-w-md transition-colors">
+      <div className="bg-white dark:bg-dark-surface p-8 rounded-2xl shadow-xl w-full max-w-md transition-colors">
 
-        <div className="flex justify-center mb-6">
-          <div className="bg-blue-600 p-3 rounded-xl">
-            <LogIn className="w-8 h-8 text-white" />
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white mb-4 shadow-lg shadow-blue-600/30">
+            <LogIn className="w-6 h-6" />
           </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {isLoginView ? 'Bentornato' : 'Crea Account'}
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+            {isLoginView ? 'Inserisci le credenziali per accedere' : 'Inizia a gestire i turni in modo semplice'}
+          </p>
         </div>
 
-        <h2 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-white">
-          {isLoginView ? 'Accedi a ShiftMate' : 'Registra la tua Attività'}
-        </h2>
+        {/* SELETTORE TIPO UTENTE (Solo in Registrazione) */}
+        {!isLoginView && (
+          <div className="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl mb-6">
+            <button
+              type="button"
+              onClick={() => setUserType('owner')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${userType === 'owner'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+            >
+              <Briefcase className="w-4 h-4" /> Titolare
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserType('employee')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${userType === 'employee'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+            >
+              <User className="w-4 h-4" /> Dipendente
+            </button>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-6">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
+          {/* Campi visibili SOLO in registrazione */}
           {!isLoginView && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  name="firstName"
-                  placeholder="Nome"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  required
-                  className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
-                />
-                <input
-                  name="lastName"
-                  placeholder="Cognome"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  required
-                  className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
-                />
-              </div>
-
-              <div className="border-t border-gray-200 dark:border-gray-700 my-2 pt-2">
-                <p className="text-xs text-gray-500 mb-2 uppercase font-bold">Dati Attività</p>
-                <input
-                  name="businessName"
-                  placeholder="Nome Attività (es. Bar Centrale)"
-                  value={formData.businessName}
-                  onChange={handleChange}
-                  required
-                  className="mb-3 p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
-                />
-                <input
-                  name="address"
-                  placeholder="Via, Città e Provincia"
-                  value={formData.address}
-                  onChange={handleChange}
-                  required
-                  className="mb-3 p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
-                />
-                <input
-                  name="phone"
-                  placeholder="Telefono Attività"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  required
-                  className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full"
-                />
-              </div>
-            </>
+            <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+              <input
+                name="firstName"
+                placeholder="Nome"
+                onChange={handleChange}
+                required
+                className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <input
+                name="lastName"
+                placeholder="Cognome"
+                onChange={handleChange}
+                required
+                className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
           )}
 
-          {/* Email e Password (sempre visibili) */}
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            onChange={handleChange}
-            required
-            className="w-full p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white"
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            onChange={handleChange}
-            required
-            className="w-full p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white"
-          />
+          {/* Campi SOLO per TITOLARE in registrazione */}
+          {!isLoginView && userType === 'owner' && (
+            <div className="border-l-2 border-blue-500 pl-3 py-1 my-2 space-y-3 animate-in fade-in slide-in-from-left-2 duration-300">
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Dati Attività</p>
+              <input
+                name="businessName"
+                placeholder="Nome Attività (es. Bar Centrale)"
+                onChange={handleChange}
+                required
+                className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <input
+                name="address"
+                placeholder="Via, Città"
+                onChange={handleChange}
+                required
+                className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <input
+                name="phone"
+                placeholder="Telefono"
+                onChange={handleChange}
+                required
+                className="p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white w-full focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          )}
 
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          {/* Email e Password (Sempre visibili) */}
+          <div className="space-y-3">
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              onChange={handleChange}
+              required
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              onChange={handleChange}
+              required
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            />
+          </div>
 
-          <button
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 text-center"
+            >
+              {error}
+            </motion.div>
+          )}
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition-colors"
+            className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold transition-colors shadow-lg shadow-blue-600/20"
           >
-            {loading ? 'Caricamento...' : (isLoginView ? 'Accedi' : 'Registrati')}
-          </button>
+            {loading ? 'Elaborazione...' : (isLoginView ? 'Accedi' : (userType === 'owner' ? 'Registra Attività' : 'Crea Account'))}
+          </motion.button>
         </form>
 
-        <div className="text-center mt-6">
+        <div className="text-center mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
           <button
             onClick={() => { setIsLoginView(!isLoginView); setError(null); }}
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
           >
-            {isLoginView ? 'Non hai un account? Registrati ora' : 'Hai già un account? Accedi'}
+            {isLoginView
+              ? <span>Non hai un account? <span className="font-bold text-blue-600 dark:text-blue-400">Registrati</span></span>
+              : <span>Hai già un account? <span className="font-bold text-blue-600 dark:text-blue-400">Accedi</span></span>
+            }
           </button>
         </div>
       </div>
+      {showEmailVerificationModal && (
+        <EmailVerificationModal
+          message={emailVerificationMessage}
+          onClose={() => setShowEmailVerificationModal(false)}
+        />
+      )}
     </div>
   );
 }
+
 
 // ============================================
 // FILE: src/index.js

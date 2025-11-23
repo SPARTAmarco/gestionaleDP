@@ -125,7 +125,34 @@ export const translations = {
         feature_notifications: 'Notifiche Automatiche (SMS/Email)',
         feature_advanced_reports: 'Reportistica Avanzata e Costi',
         activate_premium: 'Attiva Premium',
-        loading: 'Caricamento...'
+        loading: 'Caricamento...',
+        // Employee Dashboard
+        hello: 'Ciao',
+        next_shift_title: 'Il tuo prossimo turno',
+        no_shifts_scheduled: 'Nessun turno in programma.',
+        your_shifts: 'I tuoi turni',
+        no_other_shifts: 'Non hai altri turni assegnati per questa settimana.',
+        enjoy_rest: 'Goditi il riposo!',
+        home: 'Home',
+
+        // Employee Requests
+        requests_title: 'Richieste & Comunicazioni',
+        requests_subtitle: 'Invia richieste di ferie o messaggi al titolare',
+        no_requests_yet: 'Nessuna richiesta inviata ancora.',
+        pending: 'In attesa',
+        approved: 'Approvata',
+        rejected: 'Rifiutata',
+        single_day: 'Giorno Singolo',
+        write_message: 'Scrivi un messaggio...',
+        send: 'Invia',
+        ferie: 'Ferie',
+        permesso: 'Permesso',
+        malattia: 'Malattia',
+        altro: 'Altro',
+
+        // Owner Requests
+        requests_history: 'Storico Richieste',
+        no_history: 'Nessuna richiesta nello storico',
     },
     en: {
         // Sidebar
@@ -253,6 +280,34 @@ export const translations = {
         feature_notifications: 'Automatic Notifications (SMS/Email)',
         feature_advanced_reports: 'Advanced Reporting & Costs',
         activate_premium: 'Activate Premium',
-        loading: 'Loading...'
+        loading: 'Loading...',
+
+        // Employee Dashboard
+        hello: 'Hello',
+        next_shift_title: 'Your Next Shift',
+        no_shifts_scheduled: 'No shifts scheduled.',
+        your_shifts: 'Your Shifts',
+        no_other_shifts: 'You have no other shifts assigned for this week.',
+        enjoy_rest: 'Enjoy your rest!',
+        home: 'Home',
+
+        // Employee Requests
+        requests_title: 'Requests & Communications',
+        requests_subtitle: 'Send leave requests or messages to the owner',
+        no_requests_yet: 'No requests sent yet.',
+        pending: 'Pending',
+        approved: 'Approved',
+        rejected: 'Rejected',
+        single_day: 'Single Day',
+        write_message: 'Write a message...',
+        send: 'Send',
+        ferie: 'Vacation',
+        permesso: 'Leave',
+        malattia: 'Sick Leave',
+        altro: 'Other',
+
+        // Owner Requests
+        requests_history: 'Requests History',
+        no_history: 'No history available',
     }
 };
