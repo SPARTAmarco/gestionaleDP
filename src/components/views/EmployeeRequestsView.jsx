@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Calendar, MessageSquare, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { useAppContext } from '../../App';
+import { useAppContext } from '../../context/AppContext';
 
 const EmployeeRequestsView = () => {
     const { user, requests, handleCreateRequest, t } = useAppContext();

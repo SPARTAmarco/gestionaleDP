@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, LogOut, User, MapPin, Home, MessageSquare, Settings } from 'lucide-react';
-import { useAppContext } from '../../App';
+import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import EmployeeRequestsView from './EmployeeRequestsView';
 import SettingsView from './SettingsView';
@@ -40,6 +40,12 @@ const EmployeeDashboard = () => {
     const formatDate = (dateStr) => {
         const options = { weekday: 'long', day: 'numeric', month: 'short' };
         return new Date(dateStr).toLocaleDateString('it-IT', options);
+    };
+
+    const formatCreationTime = (dateStr) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return `Assegnato il: ${date.toLocaleDateString('it-IT')} alle ${date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
     };
 
     const renderHome = () => (
@@ -93,8 +99,15 @@ const EmployeeDashboard = () => {
                             <div className="bg-white/20 px-3 py-1 rounded-full text-sm backdrop-blur-sm capitalize">
                                 {user?.position || 'Staff'}
                             </div>
-                            <div className="flex items-center gap-1 text-sm font-medium opacity-90">
-                                <Clock className="w-4 h-4" /> {calculateHours(nextShift.startTime, nextShift.endTime)} ore
+                            <div className="text-right">
+                                <div className="flex items-center gap-1 text-sm font-medium opacity-90 justify-end">
+                                    <Clock className="w-4 h-4" /> {calculateHours(nextShift.startTime, nextShift.endTime)} ore
+                                </div>
+                                {nextShift.createdAt && (
+                                    <div className="mt-1 text-xs opacity-70">
+                                        {formatCreationTime(nextShift.createdAt)}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -131,8 +144,13 @@ const EmployeeDashboard = () => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="text-sm font-bold text-gray-600 dark:text-gray-300">
-                                    {calculateHours(shift.startTime, shift.endTime)}h
+                                <div className="text-sm font-bold text-gray-600 dark:text-gray-300 flex flex-col items-end">
+                                    <span>{calculateHours(shift.startTime, shift.endTime)}h</span>
+                                    {shift.createdAt && (
+                                        <span className="text-[10px] font-normal text-gray-400 mt-1">
+                                            {formatCreationTime(shift.createdAt)}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ))}

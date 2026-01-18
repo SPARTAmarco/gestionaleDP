@@ -1,39 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Plus, Edit2, Trash2, Copy, Check, Users, User, Eye } from 'lucide-react';
-// IMPORTANTE: Assicurati che questo percorso punti dove hai definito AppContext
-import { useAppContext } from '../../App';
+import { Search, Plus, Trash2, Copy, Check, Users, Eye } from 'lucide-react';
+import { useAppContext } from '../../context/AppContext';
+import EmptyState from '../ui/EmptyState';
+import ConfirmationModal from '../modals/ConfirmationModal';
 
-function EmployeesView({ onAddEmployee, onEditEmployee }) {
+function EmployeesView({ onAddEmployee, onViewDetails }) {
     const { employees, calculateWeekHours, handleDeleteEmployee, business, t } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [copied, setCopied] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [employeeToDelete, setEmployeeToDelete] = useState(null);
 
-    // DEBUG: Controlla la console per vedere se questo messaggio appare
     useEffect(() => {
         console.log("EmployeesView montato. Dipendenti ricevuti:", employees);
     }, [employees]);
 
-    // LOGICA DI FILTRO ROBUSTA
     const filteredEmployees = employees.filter(emp => {
-        // 1. Controllo base: l'oggetto deve esistere
         if (!emp) return false;
-
-        // 2. Costruiamo una stringa unica per la ricerca
         const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
         const pos = (emp.position || '').toLowerCase();
         const search = searchTerm.toLowerCase();
-
-        // 3. Se c'è una ricerca, filtriamo, altrimenti mostriamo tutto
         return fullName.includes(search) || pos.includes(search);
     });
 
-    // Funzione copia codice
     const copyCode = () => {
         if (business?.join_code) {
             navigator.clipboard.writeText(business.join_code);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const handleDeleteClick = (employee) => {
+        setEmployeeToDelete(employee);
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDelete = async () => {
+        if (employeeToDelete) {
+            await handleDeleteEmployee(employeeToDelete.id);
+            setEmployeeToDelete(null);
         }
     };
 
@@ -44,7 +51,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
             transition={{ duration: 0.5 }}
             className="space-y-6 pb-24"
         >
-            {/* --- SEZIONE 1: CODICE INVITO (Solo per Titolare) --- */}
             {business?.join_code && (
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
                     <div>
@@ -55,7 +61,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                             Il dipendente deve inserire questo codice quando si registra:
                         </p>
                     </div>
-
                     <div className="bg-white/10 backdrop-blur-md p-3 pl-5 rounded-lg flex items-center gap-4 border border-white/20">
                         <span className="font-mono text-2xl font-bold tracking-widest uppercase select-all">
                             {business.join_code}
@@ -71,7 +76,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                 </div>
             )}
 
-            {/* --- SEZIONE 2: BARRA DI RICERCA --- */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="relative flex-1 max-w-md w-full">
                     <input
@@ -94,7 +98,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                 </button>
             </div>
 
-            {/* --- SEZIONE 3: TABELLA DIPENDENTI (Desktop) --- */}
             <div className="hidden md:block bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-dark-border">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[700px]">
@@ -113,7 +116,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                     <tr key={employee.id} className="border-b border-gray-100 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg transition-colors">
                                         <td className="p-4">
                                             <div className="flex items-center gap-3">
-                                                {/* Avatar con iniziali sicure */}
                                                 <div
                                                     className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
                                                     style={{ backgroundColor: employee.color || '#ccc' }}
@@ -137,7 +139,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                             {employee.contractHours}h
                                         </td>
                                         <td className="p-4 text-center">
-                                            {/* Calcolo ore sicuro */}
                                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${(calculateWeekHours && calculateWeekHours(employee.id) > employee.contractHours)
                                                 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                 : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -148,14 +149,14 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                         <td className="p-4 text-center">
                                             <div className="flex items-center justify-center gap-2">
                                                 <button
-                                                    onClick={() => onEditEmployee(employee)}
+                                                    onClick={() => onViewDetails(employee)}
                                                     className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                                     title={t('view_details') || "Visualizza Dettagli"}
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteEmployee(employee.id)}
+                                                    onClick={() => handleDeleteClick(employee)}
                                                     className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                     title="Elimina"
                                                 >
@@ -167,14 +168,12 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="5" className="p-16 text-center">
-                                        <div className="flex flex-col items-center gap-3 text-gray-400">
-                                            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-full">
-                                                <User className="w-8 h-8 opacity-50" />
-                                            </div>
-                                            <p className="font-medium">Nessun dipendente trovato</p>
-                                            <p className="text-sm opacity-70">Prova a modificare la ricerca o aggiungi un nuovo membro.</p>
-                                        </div>
+                                    <td colSpan="5" className="p-12">
+                                        <EmptyState
+                                            type={searchTerm ? 'search' : 'employees'}
+                                            action={searchTerm ? null : onAddEmployee}
+                                            actionLabel={searchTerm ? null : 'Aggiungi Dipendente'}
+                                        />
                                     </td>
                                 </tr>
                             )}
@@ -183,12 +182,10 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                 </div>
             </div>
 
-            {/* --- SEZIONE 4: VISTA CARD (Mobile) --- */}
             <div className="md:hidden space-y-4">
                 {filteredEmployees.length > 0 ? (
                     filteredEmployees.map((employee) => (
                         <div key={employee.id} className="bg-white dark:bg-dark-surface p-4 rounded-xl shadow-sm border border-gray-100 dark:border-dark-border flex flex-col gap-3">
-                            {/* Header Card: Avatar + Nome + Ruolo */}
                             <div className="flex items-center gap-3">
                                 <div
                                     className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0"
@@ -205,8 +202,6 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Info: Ore */}
                             <div className="flex items-center justify-between bg-gray-50 dark:bg-dark-bg p-3 rounded-lg">
                                 <div className="text-sm text-gray-600 dark:text-gray-400">
                                     Contratto: <span className="font-semibold text-gray-900 dark:text-white">{employee.contractHours}h</span>
@@ -220,17 +215,15 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                                     </span>
                                 </div>
                             </div>
-
-                            {/* Azioni */}
                             <div className="flex gap-2 mt-1">
                                 <button
-                                    onClick={() => onEditEmployee(employee)}
+                                    onClick={() => onViewDetails(employee)}
                                     className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg font-medium text-sm hover:bg-blue-100 transition-colors"
                                 >
-                                    <Edit2 className="w-4 h-4" /> Modifica
+                                    <Eye className="w-4 h-4" /> Dettagli
                                 </button>
                                 <button
-                                    onClick={() => handleDeleteEmployee(employee.id)}
+                                    onClick={() => handleDeleteClick(employee)}
                                     className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors"
                                 >
                                     <Trash2 className="w-4 h-4" /> Elimina
@@ -239,15 +232,29 @@ function EmployeesView({ onAddEmployee, onEditEmployee }) {
                         </div>
                     ))
                 ) : (
-                    <div className="text-center p-8 bg-white dark:bg-dark-surface rounded-xl border border-gray-100 dark:border-dark-border">
-                        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-full inline-block mb-3">
-                            <User className="w-8 h-8 opacity-50" />
-                        </div>
-                        <p className="font-medium text-gray-900 dark:text-white">Nessun dipendente</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Modifica la ricerca o aggiungine uno.</p>
-                    </div>
+                    <EmptyState
+                        type={searchTerm ? 'search' : 'employees'}
+                        action={searchTerm ? null : onAddEmployee}
+                        actionLabel={searchTerm ? null : 'Aggiungi Dipendente'}
+                        className="bg-white dark:bg-dark-surface rounded-xl border border-gray-100 dark:border-dark-border"
+                    />
                 )}
             </div>
+
+            {/* Confirmation Modal for Delete */}
+            <ConfirmationModal
+                isOpen={showDeleteConfirm}
+                onClose={() => {
+                    setShowDeleteConfirm(false);
+                    setEmployeeToDelete(null);
+                }}
+                onConfirm={confirmDelete}
+                title="Rimuovi Dipendente"
+                message={`Sei sicuro di voler rimuovere ${employeeToDelete?.firstName} ${employeeToDelete?.lastName} dalla tua attività?\n\n⚠️ ATTENZIONE: Tutti i turni assegnati a questo dipendente verranno eliminati definitivamente.`}
+                confirmText="Rimuovi"
+                cancelText="Annulla"
+                variant="danger"
+            />
         </motion.div>
     );
 }

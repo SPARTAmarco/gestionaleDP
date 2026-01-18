@@ -8,7 +8,7 @@ import {
 
 // Assicurati che questo percorso punti al tuo AppContext.js
 // Se AppContext è nello stesso file di App.jsx, usa il percorso corretto
-import { useAppContext } from "../../App";
+import { useAppContext } from "../../context/AppContext";
 import SettingItem from '../settings/SettingItem';
 
 const SettingsView = ({ onOpenPremium }) => {
@@ -414,45 +414,6 @@ const SettingsView = ({ onOpenPremium }) => {
                         { value: 'it', label: t('italian') || 'Italiano' },
                         { value: 'en', label: t('english') || 'English' }
                     ],
-                    onChange: (val) => updateSettings('language', val),
-                    isPremium: false
-                }
-            ]
-        },
-        {
-            title: t('appearance') || 'Aspetto',
-            items: [
-                {
-                    id: 'theme',
-                    title: t('dark_theme') || 'Tema Scuro',
-                    description: t('dark_theme_desc') || 'Attiva la modalità notturna',
-                    icon: Moon,
-                    type: 'toggle',
-                    value: theme === 'dark',
-                    onChange: toggleTheme,
-                    isPremium: false
-                },
-                !isEmployee && {
-                    id: 'weekStart',
-                    title: t('week_start') || 'Inizio Settimana',
-                    description: t('week_start_desc') || 'Giorno di inizio del calendario',
-                    icon: Calendar,
-                    type: 'select',
-                    value: settings?.weekStart || 'monday',
-                    options: [
-                        { value: 'monday', label: t('monday') || 'Lunedì' },
-                        { value: 'sunday', label: t('sunday') || 'Domenica' }
-                    ],
-                    onChange: (val) => updateSettings('weekStart', val),
-                    isPremium: false
-                }
-            ].filter(Boolean)
-        },
-        !isEmployee && {
-            title: t('subscription') || 'Abbonamento',
-            items: [
-                {
-                    id: 'premium_status',
                     title: isPremium ? (t('premium_status_active') || 'Premium Attivo') : (t('premium_status_inactive') || 'Piano Gratuito'),
                     description: isPremium
                         ? (t('premium_status_desc_active') || 'Hai accesso a tutte le funzionalità')

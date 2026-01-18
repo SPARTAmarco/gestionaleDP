@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Briefcase, UserPlus, AlertCircle } from 'lucide-react';
-import { useAppContext } from '../../App'; // Adegua l'import se hai spostato il context
-import { supabase } from '../../supabaseClient';
+import { useAppContext } from '../../context/AppContext';
+import { supabase } from '../../services/supabaseClient';
 
 const JoinTeamView = ({ onCreateBusiness }) => {
     const { user, showNotification, loadData } = useAppContext();

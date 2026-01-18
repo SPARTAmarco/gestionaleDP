@@ -89,7 +89,7 @@ export const translations = {
         no_employees_found: 'Nessun dipendente trovato.',
 
         // Requests
-        pending_requests_title: 'Richieste Pendenti',
+        pending_requests_title: 'Richieste in arrivo',
         approve: 'Approva',
         reject: 'Rifiuta',
         no_pending_requests: 'Nessuna richiesta pendente. Tutto in ordine!',
@@ -97,6 +97,7 @@ export const translations = {
 
         // Modals (Employee/Shift)
         edit_employee: 'Modifica Dipendente',
+        employee_details: 'Dettagli Dipendente',
         save_employee: 'Salva Dipendente',
         create_employee: 'Aggiungi Dipendente',
         edit_shift: 'Modifica Turno',
@@ -252,6 +253,7 @@ export const translations = {
 
         // Modals (Employee/Shift)
         edit_employee: 'Edit Employee',
+        employee_details: 'Employee Details',
         save_employee: 'Save Employee',
         create_employee: 'Add Employee',
         edit_shift: 'Edit Shift',
