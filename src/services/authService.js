@@ -29,6 +29,9 @@ export const authService = {
     },
 
     async signIn(email, password) {
+        // MOCK LOGIN REMOVED
+
+
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         return { data, error };
     },
@@ -96,7 +99,7 @@ export const authService = {
     async getFullProfile(userId) {
         const { data: profile, error } = await supabase
             .from('profiles')
-            .select('is_premium, stripe_customer_id, role, business_id, first_name, last_name')
+            .select('role, business_id, first_name, last_name')
             .eq('id', userId)
             .maybeSingle();
 

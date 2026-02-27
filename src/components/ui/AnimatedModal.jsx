@@ -22,7 +22,7 @@ const AnimatedModal = ({
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
                     onClick={onClose}
-                    className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                    className="absolute inset-0 bg-black/60 backdrop-blur-md"
                 />
 
                 {/* Modal Content */}
@@ -36,17 +36,17 @@ const AnimatedModal = ({
                         stiffness: 300,
                         mass: 0.8
                     }}
-                    className={`relative bg-white dark:bg-dark-surface rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-hidden z-10`}
+                    className={`relative bg-white dark:bg-dark-surface rounded-3xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-hidden z-10 border border-gray-100 dark:border-dark-border flex flex-col`}
                 >
                     {/* Header */}
                     {(title || showCloseButton) && (
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border bg-gradient-to-r from-gray-50 to-white dark:from-dark-bg dark:to-dark-surface">
+                        <div className={`flex items-center justify-between p-6 pb-2 shrink-0 ${title ? '' : 'absolute right-0 top-0 z-20'}`}>
                             {title && (
                                 <motion.h2
-                                    initial={{ opacity: 0, x: -20 }}
+                                    initial={{ opacity: 0, x: -10 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: 0.1 }}
-                                    className="text-2xl font-bold text-gray-900 dark:text-white"
+                                    className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent"
                                 >
                                     {title}
                                 </motion.h2>
@@ -59,7 +59,7 @@ const AnimatedModal = ({
                                     whileTap={{ scale: 0.9 }}
                                     transition={{ type: 'spring', stiffness: 400 }}
                                     onClick={onClose}
-                                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-bg rounded-full transition-colors text-gray-500 dark:text-gray-400"
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-bg rounded-full transition-colors text-gray-500 dark:text-gray-400 backdrop-blur-sm"
                                 >
                                     <X className="w-5 h-5" />
                                 </motion.button>
@@ -72,7 +72,7 @@ const AnimatedModal = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.15 }}
-                        className="overflow-y-auto max-h-[calc(90vh-80px)]"
+                        className="overflow-y-auto overflow-x-hidden p-6 pt-2"
                     >
                         {children}
                     </motion.div>

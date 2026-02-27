@@ -1,8 +1,8 @@
 import React from 'react';
-import { Calendar, Users, Bell, Settings, Zap, LogOut } from 'lucide-react';
+import { Calendar, Users, Bell, Settings, Zap, LogOut, Package } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 
-const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
+const Sidebar = ({ currentView, setCurrentView }) => {
     const {
         business,
         employees,
@@ -12,11 +12,12 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
         t // Use t helper
     } = useAppContext();
 
-    const isPremium = user?.is_premium;
+
 
     const navItems = [
         { id: 'dashboard', icon: Calendar, label: t('calendar') },
         { id: 'employees', icon: Users, label: t('employees'), badge: employees.length },
+        { id: 'warehouse', icon: Package, label: 'Magazzino' }, // [NEW]
         { id: 'requests', icon: Bell, label: t('requests'), badge: pendingRequestsCount },
         { id: 'settings', icon: Settings, label: t('settings') }
     ];
@@ -58,20 +59,6 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
                     </button>
                 ))}
 
-                {isPremium ? (
-                    <div className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 bg-gradient-to-r from-yellow-400/20 to-orange-500/20 border border-yellow-400/30 mt-4">
-                        <Zap className="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="currentColor" />
-                        <span className="font-bold flex-1 text-left text-yellow-700 dark:text-yellow-400">{t('premium_member')}</span>
-                    </div>
-                ) : (
-                    <button
-                        onClick={onOpenPremium}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:shadow-lg mt-4"
-                    >
-                        <Zap className="w-5 h-5" />
-                        <span className="font-bold flex-1 text-left">{t('premium_upgrade')}</span>
-                    </button>
-                )}
             </nav>
 
             <button
@@ -81,7 +68,7 @@ const Sidebar = ({ currentView, setCurrentView, onOpenPremium }) => {
                 <LogOut className="w-5 h-5" />
                 <span className="font-medium">{t('logout')}</span>
             </button>
-        </div>
+        </div >
     );
 };
 

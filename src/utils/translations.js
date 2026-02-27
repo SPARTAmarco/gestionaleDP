@@ -154,6 +154,50 @@ export const translations = {
         // Owner Requests
         requests_history: 'Storico Richieste',
         no_history: 'Nessuna richiesta nello storico',
+        // Warehouse & Products
+        warehouse: 'Magazzino',
+        manage_inventory: 'Gestisci l\'inventario e i prodotti',
+        categories: 'Categorie',
+        all_categories: 'Tutte le categorie',
+        search_products: 'Cerca prodotti...',
+        product: 'Prodotto',
+        status: 'Stato',
+        category: 'Categoria',
+        price: 'Prezzo',
+        quantity: 'Quantità',
+        low_stock: 'SCARSO',
+        in_stock: 'DISPONIBILE',
+        no_products_found: 'Nessun prodotto trovato.',
+
+        // Product Modal
+        edit_product: 'Modifica Prodotto',
+        new_product: 'Nuovo Prodotto',
+        product_name: 'Nome Prodotto',
+        select_category: 'Seleziona categoria...',
+        min_threshold: 'Soglia Minima',
+        description: 'Descrizione',
+        additional_details: 'Dettagli aggiuntivi...',
+        delete_product_confirm: 'Sei sicuro di voler eliminare questo prodotto?',
+        product_updated: 'Prodotto aggiornato',
+        product_added: 'Prodotto aggiunto',
+        product_deleted: 'Prodotto eliminato',
+
+        // Error messages
+        error_loading_products: 'Errore caricamento prodotti',
+        error_saving_product: 'Errore salvataggio prodotto',
+        warning_missing_business_data: 'Attenzione: Dati Attività Mancanti',
+        missing_business_data_desc: 'Non è stato possibile recuperare i dati della tua attività. Questo può accadere se la registrazione non è stata completata correttamente.',
+        // Category Modal
+        category_management: 'Gestione Categorie',
+        new_category_placeholder: 'Nuova categoria...',
+        error_loading_categories: 'Errore caricamento categorie',
+        error_creating_category: 'Errore creazione categoria',
+        category_created: 'Categoria creata',
+        delete_category_confirm: 'Sei sicuro di voler eliminare questa categoria?',
+        error_deleting_category: 'Errore eliminazione categoria',
+        category_deleted: 'Categoria eliminata',
+        no_categories: 'Nessuna categoria presente',
+        close: 'Chiudi',
     },
     en: {
         // Sidebar
@@ -311,5 +355,49 @@ export const translations = {
         // Owner Requests
         requests_history: 'Requests History',
         no_history: 'No history available',
+        // Warehouse & Products
+        warehouse: 'Warehouse',
+        manage_inventory: 'Manage inventory and products',
+        categories: 'Categories',
+        all_categories: 'All categories',
+        search_products: 'Search products...',
+        product: 'Product',
+        status: 'Status',
+        category: 'Category',
+        price: 'Price',
+        quantity: 'Quantity',
+        low_stock: 'LOW STOCK',
+        in_stock: 'AVAILABLE',
+        no_products_found: 'No products found.',
+
+        // Product Modal
+        edit_product: 'Edit Product',
+        new_product: 'New Product',
+        product_name: 'Product Name',
+        select_category: 'Select category...',
+        min_threshold: 'Min Threshold',
+        description: 'Description',
+        additional_details: 'Additional details...',
+        delete_product_confirm: 'Are you sure you want to delete this product?',
+        product_updated: 'Product updated',
+        product_added: 'Product added',
+        product_deleted: 'Product deleted',
+
+        // Error messages
+        error_loading_products: 'Error loading products',
+        error_saving_product: 'Error saving product',
+        warning_missing_business_data: 'Warning: Missing Business Data',
+        missing_business_data_desc: 'Could not retrieve your business data. This can happen if registration was not completed correctly.',
+        // Category Modal
+        category_management: 'Category Management',
+        new_category_placeholder: 'New category...',
+        error_loading_categories: 'Error loading categories',
+        error_creating_category: 'Error creating category',
+        category_created: 'Category created',
+        delete_category_confirm: 'Are you sure you want to delete this category?',
+        error_deleting_category: 'Error deleting category',
+        category_deleted: 'Category deleted',
+        no_categories: 'No categories found',
+        close: 'Close',
     }
 };

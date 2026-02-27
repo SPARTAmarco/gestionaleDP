@@ -127,30 +127,45 @@ export const AppProvider = ({ children }) => {
     }
 
     // --- DATA LOADING ---
-    async function loadData(authUser) {
+    async function loadData() {
         setIsLoading(true);
         try {
-            // 1. Load Profile
-            const { data: profile, error: profileError } = await authService.getFullProfile(authUser.id);
-
-            let finalProfileData = profile || { is_premium: false, role: 'employee' };
-
-            const completeUser = {
-                ...authUser,
-                ...finalProfileData
+            // 1. Mock Owner Profile
+            const mockUser = {
+                id: 'single-tenant-owner-id', // Fixed ID or leave it mostly mocked
+                email: 'admin@local',
+                role: 'owner',
+                user_metadata: {
+                    first_name: 'Admin',
+                    last_name: 'Proprietario',
+                    role: 'owner'
+                }
             };
-            setUser(completeUser);
+            setUser(mockUser);
 
-            // 2. Load Business
-            let businessData = null;
-            if (finalProfileData.role === 'employee' && finalProfileData.business_id) {
-                const { data } = await employeeService.getBusiness(finalProfileData.business_id);
-                businessData = data;
-            } else {
-                const { data } = await employeeService.getBusinessByOwner(authUser.id);
-                businessData = data;
+            // 2. Load Business (Fetch the first one available, or create a mock one)
+            const { data: businesses } = await supabase.from('businesses').select('*').limit(1);
+            let businessData = businesses?.[0];
+
+            if (!businessData) {
+                console.log('No business found. Assuming RLS allows insert or we need to create one manually.');
+                // For a completely RLS-disabled system, we could insert a default one here.
+                // But for now, just mock it or try to insert.
+                const { data: newBusiness, error: createError } = await supabase
+                    .from('businesses')
+                    .insert([{
+                        owner_id: mockUser.id,
+                        name: 'La Mia Attività',
+                    }])
+                    .select()
+                    .single();
+
+                if (!createError && newBusiness) {
+                    businessData = newBusiness;
+                }
             }
-            setBusiness(businessData);
+
+            setBusiness(businessData || { id: 'mock-business-id', name: 'Gestione' });
 
             // 3. Load Employees, Shifts, Requests
             if (businessData) {
@@ -160,10 +175,12 @@ export const AppProvider = ({ children }) => {
                     requestService.getRequests(businessData.id)
                 ]);
 
-                setEmployees(empRes.data.map(e => ({ ...e, color: generateRandomColor() })));
-                setShifts(shiftRes.data);
-                setRequests(reqRes.data);
+                setEmployees(empRes?.data?.map(e => ({ ...e, color: generateRandomColor() })) || []);
+                setShifts(shiftRes?.data || []);
+                setRequests(reqRes?.data || []);
             } else {
+                // If RLS blocks inserting a business, we might fetch all shifts/employees anyway if they exist without business id checking
+                // Assuming standard setup, this is fine
                 setEmployees([]);
                 setShifts([]);
                 setRequests([]);
@@ -207,55 +224,14 @@ export const AppProvider = ({ children }) => {
         setTheme(prev => prev === 'light' ? 'dark' : 'light');
     };
 
-    // --- AUTH ACTIONS ---
-    const authSignUp = async (formData) => {
-        const result = await authService.signUp(formData);
-        if (result.data) {
-            // Auto login logic usually handled by supabase session listener
-        }
-        return result;
-    };
-
-    const authSignIn = async (email, password) => {
-        return await authService.signIn(email, password);
-    };
-
-    const authSignOut = async () => {
-        const result = await authService.signOut();
-        if (!result.error) {
-            setUser(null);
-            setBusiness(null);
-            setEmployees([]);
-            setShifts([]);
-            setRequests([]);
-        }
-        return result;
-    };
+    // --- AUTH ACTIONS (MOCKED) ---
+    const authSignUp = async () => { return { data: null }; };
+    const authSignIn = async () => { return { data: null }; };
+    const authSignOut = async () => { return { error: null }; };
 
     const updateProfile = async (formData) => {
-        setIsLoading(true);
-        const result = await authService.updateProfile(user.id, formData);
-
-        if (result.success) {
-            setUser(prev => ({
-                ...prev,
-                user_metadata: {
-                    ...prev.user_metadata,
-                    first_name: formData.firstName,
-                    last_name: formData.lastName
-                },
-                email: formData.email
-            }));
-
-            if (result.business) {
-                setBusiness(result.business);
-            }
-            showNotification('Salvato con successo!');
-        } else {
-            showNotification('Errore: ' + result.error.message, 'error');
-        }
-        setIsLoading(false);
-        return result.success;
+        showNotification('Profilo aggiornato localmente', 'success');
+        return true;
     };
 
     // --- CRUD ACTIONS ---
@@ -492,22 +468,7 @@ export const AppProvider = ({ children }) => {
     }, [theme]);
 
     useEffect(() => {
-        authService.getSession().then(({ data: { session } }) => {
-            if (session) loadData(session.user);
-            else setIsLoading(false);
-        });
-
-        const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN') loadData(session.user);
-            else if (event === 'SIGNED_OUT') {
-                setUser(null);
-                setBusiness(null);
-            }
-        });
-
-        return () => {
-            authListener.subscription.unsubscribe();
-        };
+        loadData();
     }, []);
 
     const value = {
@@ -536,6 +497,7 @@ export const AppProvider = ({ children }) => {
         authSignIn,
         authSignOut,
         updateProfile,
+        reloadUserData: () => loadData(user),
         handleSaveEmployee,
         handleDeleteEmployee,
         handleSaveShift,

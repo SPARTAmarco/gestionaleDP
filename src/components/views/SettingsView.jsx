@@ -414,19 +414,7 @@ const SettingsView = ({ onOpenPremium }) => {
                         { value: 'it', label: t('italian') || 'Italiano' },
                         { value: 'en', label: t('english') || 'English' }
                     ],
-                    title: isPremium ? (t('premium_status_active') || 'Premium Attivo') : (t('premium_status_inactive') || 'Piano Gratuito'),
-                    description: isPremium
-                        ? (t('premium_status_desc_active') || 'Hai accesso a tutte le funzionalità')
-                        : (t('premium_status_desc_inactive') || 'Passa a Premium per sbloccare tutto'),
-                    icon: Zap,
-                    type: 'button',
-                    isPremium: false,
-                    onClick: isPremium ? () => { } : onOpenPremium,
-                    customContent: isPremium ? (
-                        <span className="px-3 py-1 text-xs font-bold text-green-700 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-400 flex items-center gap-1">
-                            <Check className="w-3 h-3" /> {t('you_are_premium') || 'PREMIUM'}
-                        </span>
-                    ) : null
+                    isPremium: false
                 }
             ]
         },
@@ -491,16 +479,6 @@ const SettingsView = ({ onOpenPremium }) => {
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('settings_title') || 'Impostazioni'}</h2>
                     <p className="text-gray-600 dark:text-gray-400">{t('settings_subtitle') || 'Gestisci le tue preferenze e account'}</p>
                 </div>
-                {isPremium && !isEmployee && (
-                    <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400/20 to-orange-500/20 border border-yellow-400/30 rounded-full"
-                    >
-                        <Zap className="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="currentColor" />
-                        <span className="font-bold text-yellow-700 dark:text-yellow-400">{t('premium_member') || 'Membro Premium'}</span>
-                    </motion.div>
-                )}
             </div>
 
             <div className="space-y-8">
@@ -518,8 +496,6 @@ const SettingsView = ({ onOpenPremium }) => {
                                     <SettingItem
                                         key={item.id}
                                         {...item}
-                                        isLocked={item.isPremium && !isPremium}
-                                        onLockClick={onOpenPremium}
                                     />
                                 ))}
                             </div>
