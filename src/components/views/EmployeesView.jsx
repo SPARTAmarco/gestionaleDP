@@ -8,7 +8,7 @@ import ConfirmationModal from '../modals/ConfirmationModal';
 function EmployeesView({ onAddEmployee, onViewDetails }) {
     const { employees, calculateWeekHours, handleDeleteEmployee, business, t } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
-    const [copied, setCopied] = useState(false);
+    const [copiedId, setCopiedId] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
 
@@ -24,12 +24,12 @@ function EmployeesView({ onAddEmployee, onViewDetails }) {
         return fullName.includes(search) || pos.includes(search);
     });
 
-    const copyCode = () => {
-        if (business?.join_code) {
-            navigator.clipboard.writeText(business.join_code);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }
+    const copyEmployeeLink = (employeeId) => {
+        const baseUrl = window.location.href.split('?')[0];
+        const link = `${baseUrl}?dipendente=${employeeId}`;
+        navigator.clipboard.writeText(link);
+        setCopiedId(employeeId);
+        setTimeout(() => setCopiedId(null), 2000);
     };
 
     const handleDeleteClick = (employee) => {
@@ -51,30 +51,7 @@ function EmployeesView({ onAddEmployee, onViewDetails }) {
             transition={{ duration: 0.5 }}
             className="space-y-6 pb-24"
         >
-            {business?.join_code && (
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Users className="w-6 h-6" /> Invita il tuo Staff
-                        </h2>
-                        <p className="text-blue-100 mt-1 opacity-90 text-sm">
-                            Il dipendente deve inserire questo codice quando si registra:
-                        </p>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-md p-3 pl-5 rounded-lg flex items-center gap-4 border border-white/20">
-                        <span className="font-mono text-2xl font-bold tracking-widest uppercase select-all">
-                            {business.join_code}
-                        </span>
-                        <button
-                            onClick={copyCode}
-                            className="p-2 bg-white text-blue-600 rounded-md hover:bg-gray-100 transition-transform active:scale-95 shadow-sm"
-                            title="Copia codice"
-                        >
-                            {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                        </button>
-                    </div>
-                </div>
-            )}
+
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="relative flex-1 max-w-md w-full">
@@ -149,6 +126,13 @@ function EmployeesView({ onAddEmployee, onViewDetails }) {
                                         <td className="p-4 text-center">
                                             <div className="flex items-center justify-center gap-2">
                                                 <button
+                                                    onClick={() => copyEmployeeLink(employee.id)}
+                                                    className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                                                    title="Copia link dipendente"
+                                                >
+                                                    {copiedId === employee.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                                </button>
+                                                <button
                                                     onClick={() => onViewDetails(employee)}
                                                     className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                                     title={t('view_details') || "Visualizza Dettagli"}
@@ -217,6 +201,13 @@ function EmployeesView({ onAddEmployee, onViewDetails }) {
                             </div>
                             <div className="flex gap-2 mt-1">
                                 <button
+                                    onClick={() => copyEmployeeLink(employee.id)}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg font-medium text-sm hover:bg-indigo-100 transition-colors"
+                                    title="Copia link personale"
+                                >
+                                    {copiedId === employee.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />} Link
+                                </button>
+                                <button
                                     onClick={() => onViewDetails(employee)}
                                     className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg font-medium text-sm hover:bg-blue-100 transition-colors"
                                 >
@@ -255,7 +246,7 @@ function EmployeesView({ onAddEmployee, onViewDetails }) {
                 cancelText="Annulla"
                 variant="danger"
             />
-        </motion.div>
+        </motion.div >
     );
 }
 

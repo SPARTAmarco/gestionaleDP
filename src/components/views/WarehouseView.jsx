@@ -2,105 +2,105 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Package, Search, Filter, Plus, AlertTriangle, Edit2, Trash2, ArrowUp, ArrowDown, Tag } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
-import { inventoryService } from '../../services/inventoryService';
+import { warehouseService } from '../../services/warehouseService';
 import ProductModal from '../modals/ProductModal';
 import CategoryManagerModal from '../modals/CategoryManagerModal';
 import LoadingSpinner from '../ui/LoadingSpinner';
 
 const WarehouseView = () => {
     const { business, showNotification, reloadUserData, t } = useAppContext();
-    const [products, setProducts] = useState([]);
+    const [items, setItems] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('all');
     const [showModal, setShowModal] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
-    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
 
-    // Load products
-    const loadProducts = async () => {
+    // Load items
+    const loadItems = async () => {
         if (!business?.id) {
             setIsLoading(false);
             return;
         }
         setIsLoading(true);
-        const { data, error } = await inventoryService.getProducts(business.id);
+        const { data, error } = await warehouseService.getItems(business.id);
         if (error) {
             showNotification(t('error_loading_products'), 'error');
         } else {
-            setProducts(data || []);
+            setItems(data || []);
         }
         setIsLoading(false);
     };
 
     useEffect(() => {
-        loadProducts();
+        loadItems();
     }, [business?.id]);
 
     // Handlers
-    const handleAddProduct = () => {
-        setSelectedProduct(null);
+    const handleAddItem = () => {
+        setSelectedItem(null);
         setShowModal(true);
     };
 
-    const handleEditProduct = (product) => {
-        setSelectedProduct(product);
+    const handleEditItem = (item) => {
+        setSelectedItem(item);
         setShowModal(true);
     };
 
-    const handleSaveProduct = async (productData) => {
+    const handleSaveItem = async (itemData) => {
         if (!business?.id) {
             showNotification(t('warning_missing_business_data'), 'error');
             return;
         }
-        const dataToSave = { ...productData, business_id: business.id };
+        const dataToSave = { ...itemData, business_id: business.id };
 
-        if (selectedProduct) {
-            const { error } = await inventoryService.updateProduct(selectedProduct.id, dataToSave);
+        if (selectedItem) {
+            const { error } = await warehouseService.updateItem(selectedItem.id, dataToSave);
             if (error) {
                 console.error(error);
                 showNotification(`${t('error_saving_product')}: ${error.message || 'Errore sconosciuto'}`, 'error');
             } else {
                 showNotification(t('product_updated'));
-                loadProducts();
+                loadItems();
                 setShowModal(false);
             }
         } else {
-            const { error } = await inventoryService.addProduct(dataToSave);
+            const { error } = await warehouseService.addItem(dataToSave);
             if (error) {
                 console.error(error);
                 showNotification(`${t('error_saving_product')}: ${error.message || 'Errore sconosciuto'}`, 'error');
             } else {
                 showNotification(t('product_added'));
-                loadProducts();
+                loadItems();
                 setShowModal(false);
             }
         }
     };
 
-    const handleDeleteProduct = async () => {
-        if (!selectedProduct) return;
+    const handleDeleteItem = async () => {
+        if (!selectedItem) return;
         if (window.confirm(t('delete_product_confirm'))) {
-            const { error } = await inventoryService.deleteProduct(selectedProduct.id);
+            const { error } = await warehouseService.deleteItem(selectedItem.id);
             if (error) {
                 showNotification('Errore eliminazione prodotto', 'error');
             } else {
                 showNotification(t('product_deleted'));
-                loadProducts();
+                loadItems();
                 setShowModal(false);
             }
         }
     };
 
     // Filtering
-    const filteredProducts = products.filter(p => {
+    const filteredItems = items.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (p.category && p.category.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesCategory = filterCategory === 'all' || p.category === filterCategory;
         return matchesSearch && matchesCategory;
     });
 
-    const categories = ['all', ...new Set(products.map(p => p.category).filter(Boolean))];
+    const categories = ['all', ...new Set(items.map(p => p.category).filter(Boolean))];
 
     if (isLoading) return <LoadingSpinner />;
 
@@ -142,7 +142,7 @@ const WarehouseView = () => {
                         {t('categories')}
                     </button>
                     <button
-                        onClick={handleAddProduct}
+                        onClick={handleAddItem}
                         className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm font-medium"
                     >
                         <Plus className="w-5 h-5" />
@@ -178,7 +178,7 @@ const WarehouseView = () => {
                 </div>
             </div>
 
-            {/* Product List */}
+            {/* Item List */}
             <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
@@ -193,41 +193,41 @@ const WarehouseView = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                            {filteredProducts.length > 0 ? (
-                                filteredProducts.map((product) => (
+                            {filteredItems.length > 0 ? (
+                                filteredItems.map((item) => (
                                     <tr
-                                        key={product.id}
+                                        key={item.id}
                                         className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group cursor-pointer"
-                                        onClick={() => handleEditProduct(product)}
+                                        onClick={() => handleEditItem(item)}
                                     >
                                         <td className="p-4">
-                                            <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
-                                            {product.description && (
-                                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{product.description}</div>
+                                            <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
+                                            {item.notes && (
+                                                <div className="text-xs text-gray-500 truncate max-w-[200px]">{item.notes}</div>
                                             )}
                                         </td>
                                         <td className="p-4">
-                                            {product.category ? (
+                                            {item.category ? (
                                                 <span className="px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg">
-                                                    {product.category}
+                                                    {item.category}
                                                 </span>
                                             ) : (
                                                 <span className="text-gray-400 text-sm">-</span>
                                             )}
                                         </td>
                                         <td className="p-4 text-right font-medium text-gray-900 dark:text-white">
-                                            € {product.price?.toFixed(2)}
+                                            € {item.cost?.toFixed(2) || '0.00'}
                                         </td>
                                         <td className="p-4 text-center">
-                                            <span className={`font-bold ${product.quantity <= product.min_threshold
+                                            <span className={`font-bold ${item.quantity <= item.min_threshold
                                                 ? 'text-red-500'
                                                 : 'text-gray-900 dark:text-white'
                                                 }`}>
-                                                {product.quantity}
+                                                {item.quantity} {item.unit}
                                             </span>
                                         </td>
                                         <td className="p-4 text-right">
-                                            {product.quantity <= product.min_threshold ? (
+                                            {item.quantity <= item.min_threshold ? (
                                                 <span className="flex items-center justify-end gap-1 text-red-500 text-xs font-bold">
                                                     <AlertTriangle className="w-3 h-3" />
                                                     {t('low_stock')}
@@ -243,7 +243,7 @@ const WarehouseView = () => {
                                                 className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleEditProduct(product);
+                                                    handleEditItem(item);
                                                 }}
                                             >
                                                 <Edit2 className="w-4 h-4" />
@@ -266,9 +266,9 @@ const WarehouseView = () => {
 
             {showModal && (
                 <ProductModal
-                    product={selectedProduct}
-                    onSave={handleSaveProduct}
-                    onDelete={handleDeleteProduct}
+                    product={selectedItem}
+                    onSave={handleSaveItem}
+                    onDelete={handleDeleteItem}
                     onClose={() => setShowModal(false)}
                 />
             )}

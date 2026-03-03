@@ -5,7 +5,7 @@ export const employeeService = {
         if (!businessId) return { data: [], error: null };
 
         const { data, error } = await supabase
-            .from('profiles')
+            .from('employees')
             .select('*')
             .eq('business_id', businessId);
 
@@ -18,12 +18,43 @@ export const employeeService = {
             email: emp.email,
             position: emp.position || 'Dipendente',
             contractHours: emp.contract_hours || 40,
-            isActive: true,
-            // Color generation should probably be consistent or stored, but for now random is fine
-            color: '#3B82F6'
+            isActive: emp.is_active,
+            color: emp.color || '#3B82F6'
         }));
 
         return { data: formattedEmployees, error: null };
+    },
+
+    async saveEmployee(businessId, employeeData, selectedEmployee) {
+        const dbPayload = {
+            business_id: businessId,
+            first_name: employeeData.firstName,
+            last_name: employeeData.lastName,
+            email: employeeData.email,
+            position: employeeData.position,
+            contract_hours: employeeData.contractHours || 40,
+            color: employeeData.color || '#3B82F6',
+            is_active: employeeData.isActive !== undefined ? employeeData.isActive : true
+        };
+
+        if (selectedEmployee) {
+            // Update
+            const { data, error } = await supabase
+                .from('employees')
+                .update(dbPayload)
+                .eq('id', selectedEmployee.id)
+                .select()
+                .single();
+            return { data, error };
+        } else {
+            // Insert
+            const { data, error } = await supabase
+                .from('employees')
+                .insert([dbPayload])
+                .select()
+                .single();
+            return { data, error };
+        }
     },
 
     async getBusiness(businessId) {
@@ -35,61 +66,17 @@ export const employeeService = {
         return { data, error };
     },
 
-    async getBusinessByOwner(ownerId) {
-        const { data, error } = await supabase
-            .from('businesses')
-            .select('*')
-            .eq('owner_id', ownerId)
-            .maybeSingle();
-        return { data, error };
-    },
-
     async dissociateEmployee(employeeId, businessId) {
-        // Verifica che il dipendente appartenga a questa attività
-        const { data: employee, error: checkError } = await supabase
-            .from('profiles')
-            .select('business_id')
+        // Technically just deleting now, or we could set is_active=false. 
+        // Based on original logic, we disassociated them. Let's fully delete them as requested in the new single-tenant format.
+        const { error } = await supabase
+            .from('employees')
+            .delete()
             .eq('id', employeeId)
-            .single();
+            .eq('business_id', businessId);
 
-        if (checkError) {
-            return { success: false, error: checkError };
-        }
-
-        if (employee.business_id !== businessId) {
-            return {
-                success: false,
-                error: { message: 'Il dipendente non appartiene a questa attività' }
-            };
-        }
-
-        // Dissociate employee by setting business_id to null
-        const { data, error: updateError } = await supabase
-            .from('profiles')
-            .update({ business_id: null })
-            .eq('id', employeeId)
-            .select();
-
-        if (updateError) {
-            return { success: false, error: updateError };
-        }
-
-        if (data && data.length === 0) {
-            // RLS might have hidden the row. Verify if the employee is still linked.
-            const { data: verifyData, error: verifyError } = await supabase
-                .from('profiles')
-                .select('business_id')
-                .eq('id', employeeId)
-                .maybeSingle();
-
-            // If we can still see the user AND they still have our business_id, then the update FAILED.
-            if (verifyData && verifyData.business_id === businessId) {
-                return {
-                    success: false,
-                    error: { message: 'Impossibile rimuovere il dipendente. Verifica i permessi (RLS) nel database.' }
-                };
-            }
-            // If verifyData is null (can't see user anymore) OR business_id is different/null -> Success
+        if (error) {
+            return { success: false, error };
         }
 
         return { success: true, error: null };

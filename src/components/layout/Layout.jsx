@@ -11,11 +11,10 @@ const Layout = ({ children, currentView, setCurrentView, onOpenPremium }) => {
     const views = {
         'dashboard': t('calendar'),
         'employees': t('employees'),
-        'requests': t('requests'),
-        'settings': t('settings')
+        'requests': t('requests')
     };
 
-    const currentViewLabel = views[currentView] || 'ShiftMate';
+    const currentViewLabel = views[currentView] || 'La Dolce Pausa';
 
     const closeMenu = () => setIsMobileMenuOpen(false);
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Users, Bell, Settings, Zap, LogOut, Package } from 'lucide-react';
+import { Calendar, Users, Bell, Zap, LogOut, Package } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 
 const Sidebar = ({ currentView, setCurrentView }) => {
@@ -18,8 +18,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
         { id: 'dashboard', icon: Calendar, label: t('calendar') },
         { id: 'employees', icon: Users, label: t('employees'), badge: employees.length },
         { id: 'warehouse', icon: Package, label: 'Magazzino' }, // [NEW]
-        { id: 'requests', icon: Bell, label: t('requests'), badge: pendingRequestsCount },
-        { id: 'settings', icon: Settings, label: t('settings') }
+        { id: 'requests', icon: Bell, label: t('requests'), badge: pendingRequestsCount }
     ];
 
     return (
@@ -28,7 +27,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
                 <div className="bg-blue-600 p-2 rounded-xl">
                     <Calendar className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold text-gray-900 dark:text-white transition-colors">ShiftMate</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white transition-colors">La Dolce Pausa</span>
             </div>
 
             {business && (

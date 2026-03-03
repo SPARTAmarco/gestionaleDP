@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tag, Plus, Trash2, X } from 'lucide-react';
 import AnimatedModal from '../ui/AnimatedModal';
 import { useAppContext } from '../../context/AppContext';
-import { inventoryService } from '../../services/inventoryService';
+import { warehouseService } from '../../services/warehouseService';
 
 const CategoryManagerModal = ({ onClose }) => {
     const { business, showNotification, t } = useAppContext();
@@ -14,7 +14,7 @@ const CategoryManagerModal = ({ onClose }) => {
     const loadCategories = async () => {
         if (!business?.id) return;
         setIsLoading(true);
-        const { data, error } = await inventoryService.getCategories(business.id);
+        const { data, error } = await warehouseService.getCategories(business.id);
         if (error) {
             showNotification(t('error_loading_categories'), 'error');
         } else {
@@ -31,7 +31,7 @@ const CategoryManagerModal = ({ onClose }) => {
         e.preventDefault();
         if (!newCategory.trim()) return;
 
-        const { data, error } = await inventoryService.addCategory({
+        const { data, error } = await warehouseService.addCategory({
             business_id: business.id,
             name: newCategory.trim()
         });
@@ -48,7 +48,7 @@ const CategoryManagerModal = ({ onClose }) => {
     const handleDeleteCategory = async (id) => {
         if (!window.confirm(t('delete_category_confirm'))) return;
 
-        const { error } = await inventoryService.deleteCategory(id);
+        const { error } = await warehouseService.deleteCategory(id);
         if (error) {
             showNotification(t('error_deleting_category'), 'error');
         } else {

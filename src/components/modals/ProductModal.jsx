@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, Tag, Hash, DollarSign, AlertTriangle, Trash2 } from 'lucide-react';
+import { Package, Tag, Hash, DollarSign, AlertTriangle, Trash2, Scale } from 'lucide-react';
 import AnimatedModal from '../ui/AnimatedModal';
-import { inventoryService } from '../../services/inventoryService';
+import { warehouseService } from '../../services/warehouseService';
 import { useAppContext } from '../../context/AppContext';
 
 const ProductModal = ({ product, onClose, onSave, onDelete }) => {
@@ -12,15 +12,16 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
         name: '',
         category: '',
         quantity: 0,
-        price: 0,
+        unit: 'pz',
+        cost: 0,
         min_threshold: 5,
-        description: ''
+        notes: ''
     });
 
     useEffect(() => {
         const loadCategories = async () => {
             if (business?.id) {
-                const { data } = await inventoryService.getCategories(business.id);
+                const { data } = await warehouseService.getCategories(business.id);
                 setCategories(data || []);
             }
         };
@@ -33,9 +34,10 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
                 name: product.name || '',
                 category: product.category || '',
                 quantity: product.quantity || 0,
-                price: product.price || 0,
+                unit: product.unit || 'pz',
+                cost: product.cost || 0,
                 min_threshold: product.min_threshold || 5,
-                description: product.description || ''
+                notes: product.notes || ''
             });
         }
     }, [product]);
@@ -52,13 +54,13 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
         e.preventDefault();
 
         const qty = parseInt(formData.quantity);
-        const price = parseFloat(formData.price);
+        const costVal = parseFloat(formData.cost);
         const threshold = parseInt(formData.min_threshold);
 
         const dataToSubmit = {
             ...formData,
             quantity: isNaN(qty) ? 0 : qty,
-            price: isNaN(price) ? 0 : price,
+            cost: isNaN(costVal) ? 0 : costVal,
             min_threshold: isNaN(threshold) ? 5 : threshold
         };
         onSave(dataToSubmit);
@@ -109,7 +111,7 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ml-1">{t('price')} (€)</label>
+                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ml-1">Costo Unitario (€)</label>
                         <div className="relative group">
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 flex items-center justify-center transition-colors group-focus-within:bg-green-600 group-focus-within:text-white">
                                 <DollarSign className="w-4 h-4" />
@@ -117,8 +119,8 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
                             <input
                                 type="number"
                                 step="0.01"
-                                name="price"
-                                value={formData.price}
+                                name="cost"
+                                value={formData.cost}
                                 onChange={handleChange}
                                 className="w-full pl-14 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all font-medium text-gray-900 dark:text-white"
                             />
@@ -126,7 +128,7 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ml-1">{t('quantity')}</label>
                         <div className="relative group">
@@ -141,6 +143,27 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
                                 required
                                 className="w-full pl-14 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-gray-500 outline-none transition-all font-medium text-gray-900 dark:text-white"
                             />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ml-1">Unità</label>
+                        <div className="relative group">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center transition-colors group-focus-within:bg-purple-600 group-focus-within:text-white">
+                                <Scale className="w-4 h-4" />
+                            </div>
+                            <select
+                                name="unit"
+                                value={formData.unit}
+                                onChange={handleChange}
+                                className="w-full pl-14 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition-all font-medium text-gray-900 dark:text-white appearance-none cursor-pointer"
+                            >
+                                <option value="pz">pz (Pezzi)</option>
+                                <option value="kg">kg (Chilogrammi)</option>
+                                <option value="g">g (Grammi)</option>
+                                <option value="l">l (Litri)</option>
+                                <option value="scatole">Scatole</option>
+                            </select>
                         </div>
                     </div>
 
@@ -164,8 +187,8 @@ const ProductModal = ({ product, onClose, onSave, onDelete }) => {
                 <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ml-1">{t('description')}</label>
                     <textarea
-                        name="description"
-                        value={formData.description}
+                        name="notes"
+                        value={formData.notes}
                         onChange={handleChange}
                         rows="3"
                         className="w-full p-4 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-gray-900 dark:text-white resize-none"

@@ -111,7 +111,7 @@ export const translations = {
         night: 'Notte',
 
         // Premium Modal
-        premium_plans_title: 'Piani ShiftMate Premium',
+        premium_plans_title: 'Piani Premium',
         premium_plans_desc: 'Scegli il piano che meglio si adatta alle tue esigenze.',
         plan_base: 'Base',
         plan_base_desc: 'Gestione essenziale dei turni.',
@@ -311,7 +311,7 @@ export const translations = {
         night: 'Night',
 
         // Premium Modal
-        premium_plans_title: 'ShiftMate Premium Plans',
+        premium_plans_title: 'Premium Plans',
         premium_plans_desc: 'Choose the plan that best fits your needs.',
         plan_base: 'Base',
         plan_base_desc: 'Essential shift management.',

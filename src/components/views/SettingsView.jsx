@@ -414,6 +414,7 @@ const SettingsView = ({ onOpenPremium }) => {
                         { value: 'it', label: t('italian') || 'Italiano' },
                         { value: 'en', label: t('english') || 'English' }
                     ],
+                    onChange: (val) => updateSettings('language', val),
                     isPremium: false
                 }
             ]

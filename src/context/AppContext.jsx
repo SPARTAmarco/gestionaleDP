@@ -1,5 +1,4 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { authService } from '../services/authService';
 import { shiftService } from '../services/shiftService';
 import { employeeService } from '../services/employeeService';
 import { requestService } from '../services/requestService';
@@ -143,19 +142,19 @@ export const AppProvider = ({ children }) => {
             };
             setUser(mockUser);
 
-            // 2. Load Business (Fetch the first one available, or create a mock one)
-            const { data: businesses } = await supabase.from('businesses').select('*').limit(1);
-            let businessData = businesses?.[0];
+            // 2. Load Business (Fetch the first one available)
+            // Retrieve all businesses without limit to bypass potential RLS/caching quirks when limit(1) is used, 
+            // then we'll just pick the first one.
+            const { data: businesses, error: busErr } = await supabase.from('businesses').select('*');
+            let businessData = businesses && businesses.length > 0 ? businesses[0] : null;
 
             if (!businessData) {
-                console.log('No business found. Assuming RLS allows insert or we need to create one manually.');
-                // For a completely RLS-disabled system, we could insert a default one here.
-                // But for now, just mock it or try to insert.
+                console.log('No business found. Attempting to create fallback "La Dolce Pausa".');
                 const { data: newBusiness, error: createError } = await supabase
                     .from('businesses')
                     .insert([{
-                        owner_id: mockUser.id,
-                        name: 'La Mia Attività',
+                        name: 'La Dolce Pausa',
+                        address: 'Via Esempio 1, Colzate'
                     }])
                     .select()
                     .single();
@@ -165,7 +164,8 @@ export const AppProvider = ({ children }) => {
                 }
             }
 
-            setBusiness(businessData || { id: 'mock-business-id', name: 'Gestione' });
+            // Always ensure we have something so the UI doesn't crash, even if DB is totally unresponsive
+            setBusiness(businessData || { id: 'mock-business-id', name: 'La Dolce Pausa', address: 'Via Esempio 1, Colzate' });
 
             // 3. Load Employees, Shifts, Requests
             if (businessData) {
@@ -229,40 +229,30 @@ export const AppProvider = ({ children }) => {
     const authSignIn = async () => { return { data: null }; };
     const authSignOut = async () => { return { error: null }; };
 
-    const updateProfile = async (formData) => {
+    const updateProfile = async () => {
         showNotification('Profilo aggiornato localmente', 'success');
         return true;
     };
 
     // --- CRUD ACTIONS ---
     const handleSaveEmployee = async (formData, selectedEmployee) => {
-        // In a real app we would call API here. For now we just update local state as per original code?
-        // Wait, original code was just updating local state for employees? 
-        // Ah, looking at original code: "setEmployees(prev => ...)" - it was MOCKING save.
-        // But we should probably implement real save if we can, or keep mocking.
-        // The user asked for "Backend improvements", so I should probably implement real save.
-        // However, I don't have an `employeeService.saveEmployee` yet.
-        // Let's stick to the original logic for now but wrapped in the service pattern if possible,
-        // or just keep it local if the backend endpoint doesn't exist.
-        // Actually, `App.jsx` had `handleSaveEmployee` which just did `setEmployees`.
-        // I will keep it as is for now to avoid breaking changes, but I should add a TODO.
+        try {
+            setIsLoading(true);
+            if (!business?.id) throw new Error('Nessuna attività selezionata.');
 
-        if (selectedEmployee) {
-            setEmployees(prev => prev.map(emp =>
-                emp.id === selectedEmployee.id ? { ...emp, ...formData } : emp
-            ));
-            showNotification('Dipendente aggiornato');
-        } else {
-            const newEmployee = {
-                id: Date.now().toString(),
-                ...formData,
-                isActive: true,
-                color: generateRandomColor()
-            };
-            setEmployees(prev => [...prev, newEmployee]);
-            showNotification('Dipendente aggiunto');
+            const result = await employeeService.saveEmployee(business.id, formData, selectedEmployee);
+            if (result.error) throw result.error;
+
+            await loadData(); // Reload to get fresh data with IDs
+            showNotification(selectedEmployee ? 'Dipendente aggiornato' : 'Dipendente aggiunto', 'success');
+            return true;
+        } catch (error) {
+            console.error('Errore salvataggio dipendente:', error);
+            showNotification(error.message || 'Errore salvataggio dipendente', 'error');
+            return false;
+        } finally {
+            setIsLoading(false);
         }
-        return true;
     };
 
     const handleDeleteEmployee = async (id) => {
@@ -337,7 +327,8 @@ export const AppProvider = ({ children }) => {
             if (error) throw error;
             setShifts(prev => prev.filter(s => s.id !== id));
             showNotification('Turno eliminato');
-        } catch (error) {
+        } catch (err) {
+            console.error(err);
             showNotification('Errore eliminazione turno', 'error');
         }
     };
@@ -435,7 +426,8 @@ export const AppProvider = ({ children }) => {
             await loadData(user);
             showNotification('Richiesta inviata');
             return true;
-        } catch (error) {
+        } catch (err) {
+            console.error(err);
             showNotification('Errore invio richiesta', 'error');
             return false;
         } finally {
@@ -469,6 +461,7 @@ export const AppProvider = ({ children }) => {
 
     useEffect(() => {
         loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const value = {
@@ -562,7 +555,6 @@ export const AppProvider = ({ children }) => {
             try {
                 const weekDays = getWeekDays();
                 const startStr = weekDays[0].toLocaleDateString();
-                const endStr = weekDays[6].toLocaleDateString();
 
                 const data = [];
                 // Header
@@ -604,6 +596,7 @@ export const AppProvider = ({ children }) => {
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAppContext = () => {
     const context = useContext(AppContext);
     if (!context) {

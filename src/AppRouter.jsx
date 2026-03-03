@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAppContext } from './context/AppContext';
-import { supabase } from './services/supabaseClient';
 
 // Views
-// Views
-import WarehouseView from './components/views/WarehouseView'; // [NEW]
+import DashboardView from './components/views/DashboardView';
+import EmployeesView from './components/views/EmployeesView';
+import RequestsView from './components/views/RequestsView';
+
+import WarehouseView from './components/views/WarehouseView';
+import EmployeePortalView from './components/views/EmployeePortalView';
 
 // Layout & UI
 import Layout from './components/layout/Layout';
@@ -19,18 +22,16 @@ import RepeatWeeksModal from './components/modals/RepeatWeeksModal';
 const AppRouter = () => {
     // 1. PRENDI LO STATO GLOBALE
     const {
-        user,
-        isLoading,
-        business,
-        showNotification,
-        reloadUserData,
         handleSaveEmployee,
         handleSaveShift,
         handleDeleteShift,
         handleRepeatSchedule
     } = useAppContext();
 
-    // 2. STATO DI NAVIGAZIONE
+    // 2. CHECK EMPLOYEE PORTAL VIA URL
+    const employeeIdFromUrl = new URLSearchParams(window.location.search).get('dipendente');
+
+    // 3. STATO DI NAVIGAZIONE
     const [currentView, setCurrentView] = useState('dashboard');
 
     // 3. STATO DEI MODALI
@@ -43,7 +44,6 @@ const AppRouter = () => {
 
     // 4. FUNZIONI HELPER PER I MODALI
     const openAddEmployee = () => { setSelectedEmployee(null); setShowEmployeeModal(true); };
-    const openEditEmployee = (emp) => { setSelectedEmployee(emp); setShowEmployeeModal(true); };
     const openViewDetails = (emp) => { setSelectedEmployee(emp); setShowEmployeeModal(true); };
 
     const openAddShift = (date = null) => {
@@ -88,15 +88,20 @@ const AppRouter = () => {
                 return <WarehouseView />;
             case 'requests':
                 return <RequestsView />;
-            case 'settings':
-                return <SettingsView />;
+
             default:
                 return <DashboardView onAddShift={openAddShift} onEditShift={openEditShift} onOpenRepeatWeeksModal={() => setShowRepeatWeeksModal(true)} />;
         }
     };
 
     // --- RENDERING APP ---
-    // In single-tenant mode, everyone is the owner
+
+    // Se è un dipendente che accede tramite link
+    if (employeeIdFromUrl) {
+        return <EmployeePortalView employeeId={employeeIdFromUrl} />;
+    }
+
+    // Altrimenti entra nella modalità Titolare
     return (
         <>
             <Layout
